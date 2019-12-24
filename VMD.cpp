@@ -178,20 +178,18 @@ void VMD(MatrixXd& u, MatrixXcd& u_hat, MatrixXd& omega,
 
 			
 	u_hat.row(0) = u_hat.row(N - 1).transpose().adjoint();
-	MatrixXcd u_pre(K, T);
+	u.resize(K, saveT);
 	vectord result_col;
 	for (int k = 0; k < K; k++) {
 		vectorcd u_hat_col = ExtractColFromMatrixXcd(u_hat, k, T);
 		u_hat_col = circshift(u_hat_col, int(floor(T / 2)));
-		fft.inv(result_col,u_hat_col);
-		for (int t = 0; t < T; t++) 
-			u_pre(k, t) = result_col[t];
+		fft.inv(result_col, u_hat_col);
+		for (int t = 0; t < saveT; t++)
+			u(k, t) = result_col[t + T / 4];
 	}
-	//remove mirror part
-	u = u_pre.block(0,T/4,K,3*T/4).real();
-	//u = RemoveMirrorPart(u,T,K);
-	//int new_col_num = T/2;
-	u_hat = MatrixXcd::Zero(u.rows(), u.cols());
+
+
+	u_hat.fill(0);
 	vectord result_timevec(saveT, 0);
 	for (int i = 0; i < saveT; i += 1) {
 		result_timevec[i] = double(i + 1) / saveT;
