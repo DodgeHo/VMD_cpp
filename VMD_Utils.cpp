@@ -35,7 +35,7 @@ void VMD
 	double fs = 1.0 / T;
 	
 	//extend the signal by mirroring
-	vectord  f(2 * T, 0);
+	vectord  f(2 * T, 0.0);
 	copy(signal.begin(), signal.end(), f.begin() + T / 2);
 	for (int i = 0; i < T / 2; i++)
 		f[i] = signal[T / 2 - 1 - i];
@@ -45,8 +45,8 @@ void VMD
 	// Time Domain 0 to T (of mirrored signal)
 	// Spectral Domain discretization
 	T = int(f.size());
-	vectorcd freqs(T, 0);
-	vectord timevec(T, 0);
+	vectorcd freqs(T, 0.0);
+	vectord timevec(T, 0.0);
 	for (int i = 0; i < T; i ++) {
 		timevec[i] = double(i + 1.0) / T;
 		freqs[i] = (timevec[i] - 0.5) - double(1 / T);
@@ -56,30 +56,36 @@ void VMD
 	int N = 500;
 
 	// For future generalizations : individual alpha for each mode
-	vectord Alpha = vectord(K, alpha);
+	//vectord Alpha = vectord(K, alpha);
 
 	// Construct and center f_hat
-	vectorcd freqvec(T);
+	vectorcd freqvec(T, 0.0);
 	FFT<double> fft; fft.fwd(freqvec,f);
 	vectorcd f_hat = circshift(freqvec, T / 2);
-	vectorcd f_hat_plus(f_hat.size(), 0);
+	vectorcd f_hat_plus(f_hat.size(), 0.0);
 	copy(f_hat.begin() + T / 2, f_hat.end(), f_hat_plus.begin() + T / 2);
 
 	// matrix keeping track of every iterant // could be discarded for mem
 	Matrix3DXd u_hat_plus(N, MatrixXcd::Zero(K, T));
 
 	// Initialization of omega_k
-	MatrixXcd omega_plus(N, K);
+	MatrixXcd omega_plus = MatrixXcd::Zero(N, K);
 	vectord tmp;
 	switch (init) {
 	case 1:
-		for (int i = 0; i < K; i++) 
+		for (int i = 0; i < K; i++){
 			omega_plus(0, i) = double(0.5 / K) * (i);
+			for (int j = 1; j < N; j++)
+				omega_plus(j, i) = 0.0;
+		}
 		break;
 	case 2:
 		tmp = omega_init_method2(K, fs);
-		for (int i = 1; i <= K; i++)
+		for (int i = 0; i < K; i++) {
 			omega_plus(0, i) = tmp[i];
+			for (int j = 1; j < N; j++)
+				omega_plus(j, i) = 0.0;
+		}
 		break;
 	default:
 		break;
@@ -90,39 +96,39 @@ void VMD
 		omega_plus(0, 0) = 0;
 
 	// start with empty dual variables
-	MatrixXcd lambda_hat(N, T);
+	MatrixXcd lambda_hat = MatrixXcd::Zero(N, T);
 
 	// other inits
 	double uDiff = tol + eps;//% update step
 	int n = 1;// loop counter
-	MatrixXcd sum_uk(1, T); 
+	MatrixXcd sum_uk = MatrixXcd::Zero(1, T);
 	// accumulator
 	int k ;
 	//vectord sum_uk(freqs.size());
 
 
 	// ----------- Main loop for iterative updates
-	while (uDiff > tol&& n < N) {
+	while (uDiff > tol && n < N) {
 
 		//update first mode accumulator
-		k = 1;
+		k = 0;
 		sum_uk = u_hat_plus[n - 1].row(K - 1) + sum_uk - u_hat_plus[n-1].row(0);
 		
 		//update spectrum of first mode through Wiener filter of residuals
 		MatrixXcd Dividend_vec= vector_to_MatrixXcd_in_col(f_hat_plus) - sum_uk - (lambda_hat.row(n - 1) / 2.0);
-		MatrixXcd Divisor_vec = (1 + Alpha[k - 1] *
-			((vector_to_MatrixXcd_in_col(freqs).array() - omega_plus(n - 1, k - 1))).array().square());
-		u_hat_plus[n].row(k-1) = Dividend_vec.cwiseQuotient(Divisor_vec);
+		MatrixXcd Divisor_vec = (1 + alpha *
+			((vector_to_MatrixXcd_in_col(freqs).array() - omega_plus(n - 1, k))).array().square());
+		u_hat_plus[n].row(k) = Dividend_vec.cwiseQuotient(Divisor_vec);
 
 		//update first omega if not held at 0
 		if (!DC) {
-			std::complex<double> Dividend(0,0), Divisor(0,0), Addend;
+			std::complex<double> Dividend{ 0,0 }, Divisor{ 0, 0 }, Addend{ 0, 0 };
 			for (int i = 0; i < T - T / 2; i++) {
-				Addend = abs(u_hat_plus[n](k - 1, T / 2 + i))* abs(u_hat_plus[n](k - 1, T / 2 + i));
+				Addend = abs(u_hat_plus[n](k, T / 2 + i))* abs(u_hat_plus[n](k, T / 2 + i));
 				Divisor += Addend;
 				Dividend += freqs[T / 2 + i] * Addend;
 			}
-			omega_plus(n, k - 1) = Dividend/ Divisor;
+			omega_plus(n, k) = Dividend/ Divisor;
 			
 		}
 		// Dual ascent
@@ -133,12 +139,12 @@ void VMD
 
 			//mode spectrum
 			MatrixXcd Dividend_vec = vector_to_MatrixXcd_in_col(f_hat_plus) - sum_uk - (lambda_hat.row(n - 1) / 2.0);
-			MatrixXcd Divisor_vec = (1 + Alpha[k] *
+			MatrixXcd Divisor_vec = (1 + alpha *
 				((vector_to_MatrixXcd_in_col(freqs).array() - omega_plus(n - 1, k))).array().square());
 			u_hat_plus[n].row(k) = Dividend_vec.cwiseQuotient(Divisor_vec);
 
 			//center frequencies
-			std::complex<double> Dividend(0,0), Divisor(0,0), Addend;
+			std::complex<double> Dividend{ 0,0 }, Divisor{ 0, 0 }, Addend{ 0, 0 };
 			for (int i = 0; i < T - T / 2; i++) {
 				Addend = abs(u_hat_plus[n](k, T / 2 + i))* abs(u_hat_plus[n](k, T / 2 + i));
 				Divisor += Addend;
@@ -152,7 +158,7 @@ void VMD
 		n++;
 		//uDiff = eps;
 
-		std::complex<double> acc(eps, 0);
+		std::complex<double> acc{ eps, 0 };
 		for (int i = 0; i < K; i++) {
 			MatrixXcd tmp = u_hat_plus[n-1].row(i) - u_hat_plus[n-2].row(i);
 			tmp =  (tmp * (tmp.adjoint()));
@@ -180,7 +186,7 @@ void VMD
 			u_hat(i, k) = conj(u_hat_plus[N - 1](k, T - i - 1));
 
 			
-	u_hat.row(0) = u_hat.row(N - 1).transpose().adjoint();
+	u_hat.row(0) = u_hat.row(T - 1).transpose().adjoint();
 	u.resize(K, saveT);
 	vectord result_col;
 	for (int k = 0; k < K; k++) {
@@ -203,7 +209,7 @@ void VMD
 		fft.inv(result_timevec, u_row);
 		u_row = circshift(u_row, saveT / 2);
 		for (int t = 0; t < saveT; t++)
-			u(k,t) = u_row[t].real();
+			u_hat(t,k) = u_row[t].real();
 	}
 
 
@@ -216,7 +222,7 @@ vectorcd circshift(vectorcd& data, int offset) {
 	int n = int(data.size());
 	offset = offset % n;
 	if (offset == 0) {
-		vectorcd out_data(n);
+		vectorcd out_data(n, 0.0);
 		copy(data.begin(), data.end(), out_data.begin());
 		return data;
 	}
@@ -258,7 +264,7 @@ vectord omega_init_method2(int K, const double fs) {
 
 MatrixXcd vector_to_MatrixXcd_in_row(vectorcd& Input) {
 	int m = int(Input.size());
-	MatrixXcd cov(m, 1);
+	MatrixXcd cov = MatrixXcd::Zero(m, 1);
 	for (int i = 0; i < m; ++i)
 		cov(i, 0) = Input[i];
 	return cov;
@@ -266,7 +272,7 @@ MatrixXcd vector_to_MatrixXcd_in_row(vectorcd& Input) {
 
 MatrixXcd vector_to_MatrixXcd_in_col(vectorcd& Input) {
 	int T = int(Input.size());
-	MatrixXcd tmp(1, T);
+	MatrixXcd tmp = MatrixXcd::Zero(1, T);
 	for (int t = 0; t < T; t++)
 		tmp(0, t) = Input[t];
 	return tmp;
