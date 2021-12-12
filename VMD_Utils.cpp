@@ -55,9 +55,6 @@ void VMD
 	// Maximum number of iterations(if not converged yet, then it won't anyway)
 	int N = 500;
 
-	// For future generalizations : individual alpha for each mode
-	//vectord Alpha = vectord(K, alpha);
-
 	// Construct and center f_hat
 	vectorcd freqvec(T, 0.0);
 	FFT<double> fft; fft.fwd(freqvec,f);
@@ -115,7 +112,7 @@ void VMD
 		sum_uk = u_hat_plus[n - 1].row(K - 1) + sum_uk - u_hat_plus[n-1].row(0);
 		
 		//update spectrum of first mode through Wiener filter of residuals
-		MatrixXcd Dividend_vec= vector_to_MatrixXcd_in_col(f_hat_plus) - sum_uk - (lambda_hat.row(n - 1) / 2.0);
+		MatrixXcd Dividend_vec = vector_to_MatrixXcd_in_col(f_hat_plus) - sum_uk - (lambda_hat.row(n - 1) / 2.0);
 		MatrixXcd Divisor_vec = (1 + alpha *
 			((vector_to_MatrixXcd_in_col(freqs).array() - omega_plus(n - 1, k))).array().square());
 		u_hat_plus[n].row(k) = Dividend_vec.cwiseQuotient(Divisor_vec);
@@ -231,22 +228,10 @@ vectorcd circshift(vectorcd& data, int offset) {
 	if (offset < 0) 
 		offset = n + offset;
 	vectorcd out_data(data);
-	reverse(out_data, 0,n-1);
-	reverse(out_data, 0, n - offset - 1);
-	reverse(out_data, n - offset, n - 1);
+	reverse(out_data.begin(), out_data.begin() + n - 1);
+	reverse(out_data.begin(), out_data.begin() + n - offset - 1);
+	reverse(out_data.begin() + n - offset, out_data.begin() + n - 1);
 	return out_data;
-}
-
-template<typename T>
-void reverse(T& v, const int s, const int l) {
-	int n = int(v.size());
-	auto temp = v[0];
-	for (int i = s, j = l; i < j; i++, j--) {
-		temp = v[i];
-		v[i] = v[j];
-		v[j] = temp;
-	}
-	return;
 }
 
 vectord omega_init_method2(int K, const double fs) {
@@ -262,20 +247,10 @@ vectord omega_init_method2(int K, const double fs) {
 	return res;
 }
 
-MatrixXcd vector_to_MatrixXcd_in_row(vectorcd& Input) {
-	int m = int(Input.size());
-	MatrixXcd cov = MatrixXcd::Zero(m, 1);
-	for (int i = 0; i < m; ++i)
-		cov(i, 0) = Input[i];
-	return cov;
-}
-
 MatrixXcd vector_to_MatrixXcd_in_col(vectorcd& Input) {
-	int T = int(Input.size());
-	MatrixXcd tmp = MatrixXcd::Zero(1, T);
-	for (int t = 0; t < T; t++)
-		tmp(0, t) = Input[t];
-	return tmp;
+	std::complex<double>* dataPtr = &Input[0];
+	Eigen::MatrixXcd copiedMatrix = Eigen::Map<Eigen::MatrixXcd>(dataPtr, 1, int(Input.size()));
+	return copiedMatrix;
 }
 
 vectorcd ExtractColFromMatrixXcd(MatrixXcd& Input, const int ColIdx, const int RowNum) {
