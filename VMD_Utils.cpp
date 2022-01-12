@@ -215,23 +215,19 @@ void VMD
 
 #pragma region Ancillary Functions 
 
-vectorcd circshift(vectorcd& data, int offset) {
+vectorcd circshift(vectorcd& data, int offset){
 	int n = int(data.size());
-	offset = offset % n;
 	if (offset == 0) {
-		vectorcd out_data(n, 0.0);
-		copy(data.begin(), data.end(), out_data.begin());
-		return data;
+		vectorcd out_data(data);
+		return out_data;
 	}
-	//If you want to left-move (-offset) of positions,
-	//it's just actually right move (n-offset) of positions.
-	if (offset < 0) 
-		offset = n + offset;
-	vectorcd out_data(data);
-	reverse(out_data.begin(), out_data.begin() + n - 1);
-	reverse(out_data.begin(), out_data.begin() + n - offset - 1);
-	reverse(out_data.begin() + n - offset, out_data.begin() + n - 1);
-	return out_data;
+	else{
+		if (offset > 0) offset = n - offset;		// move to right by offset positions
+		else              offset = -offset;			// move to left by offset positions
+		vectorcd out_data(data.begin() + offset, data.end());
+		out_data.insert(out_data.end(), data.begin(), data.begin() + offset);
+		return out_data;
+	}
 }
 
 vectord omega_init_method2(int K, const double fs) {
