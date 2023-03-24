@@ -2,8 +2,10 @@
 #include <vector>
 #include <cmath>
 #include <ctime>
-#include <Eigen/Core>
-#include <unsupported/Eigen/FFT>
+#include "Eigen/Eigen/Eigen"
+#include "Eigen/unsupported/Eigen/FFT"
+//#include <Eigen/Core>
+//#include <unsupported/Eigen/FFT>
 
 #define pI acos(-1)
 using namespace Eigen;
@@ -21,5 +23,3 @@ MatrixXcd vector_to_MatrixXcd_in_col(vectorcd& Input);
 vectorcd ExtractColFromMatrixXcd(MatrixXcd& Input, const int k, const int T);
 vectorcd ExtractRowFromMatrixXd(MatrixXd& Input, const int k, const int T);
 MatrixXcd sum(Matrix3DXd& u_hat_plus, const int n);
-
-

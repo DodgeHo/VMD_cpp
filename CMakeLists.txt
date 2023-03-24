@@ -4,8 +4,8 @@ project ("VMD_CPP")
 
 find_package(Eigen3)
 
-include_directories($SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/eigen-3.4.0 )
-include_directories($SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/eigen-3.4.0/unsupported )
+include_directories($SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/Eigen)
+include_directories($SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/Eigen/unsupported )
 add_executable (VMD_CPP "VMD.cpp" "VMD.h" "VMD_Utils.cpp")
 
 add_custom_target(build_all_configs
