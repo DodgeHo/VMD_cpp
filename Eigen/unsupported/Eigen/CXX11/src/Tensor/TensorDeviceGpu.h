@@ -15,6 +15,9 @@
 // A separate header (included at the end of this file) will undefine all 
 #include "TensorGpuHipCudaDefines.h"
 
+// IWYU pragma: private
+#include "./InternalHeaderCheck.h"
+
 namespace Eigen {
 
 static const int kGpuScratchSize = 1024;
@@ -128,7 +131,13 @@ class GpuStreamDevice : public StreamInterface {
  public:
   // Use the default stream on the current device
   GpuStreamDevice() : stream_(&default_stream), scratch_(NULL), semaphore_(NULL) {
-    gpuGetDevice(&device_);
+    gpuError_t status = gpuGetDevice(&device_);
+    if (status != gpuSuccess) {
+      std::cerr << "Failed to get the GPU devices "
+                << gpuGetErrorString(status)
+                << std::endl;
+      gpu_assert(status == gpuSuccess);
+    }
   }
   // Use the default stream on the specified device
   GpuStreamDevice(int device) : stream_(&default_stream), device_(device), scratch_(NULL), semaphore_(NULL) {}
@@ -139,7 +148,13 @@ class GpuStreamDevice : public StreamInterface {
   GpuStreamDevice(const gpuStream_t* stream, int device = -1)
       : stream_(stream), device_(device), scratch_(NULL), semaphore_(NULL) {
     if (device < 0) {
-      gpuGetDevice(&device_);
+      gpuError_t status = gpuGetDevice(&device_);
+      if (status != gpuSuccess) {
+        std::cerr << "Failed to get the GPU devices "
+                  << gpuGetErrorString(status)
+                  << std::endl;
+        gpu_assert(status == gpuSuccess);
+      }
     } else {
       int num_devices;
       gpuError_t err = gpuGetDeviceCount(&num_devices);
@@ -281,7 +296,46 @@ struct GpuDevice {
     EIGEN_UNUSED_VARIABLE(err)
     gpu_assert(err == gpuSuccess);
 #else
+  EIGEN_UNUSED_VARIABLE(buffer)
+  EIGEN_UNUSED_VARIABLE(c)
+  EIGEN_UNUSED_VARIABLE(n)
   eigen_assert(false && "The default device should be used instead to generate kernel code");
+#endif
+  }
+
+  template<typename T>
+  EIGEN_STRONG_INLINE void fill(T* begin, T* end, const T& value) const {
+#ifndef EIGEN_GPU_COMPILE_PHASE
+    const size_t count = end - begin;
+    // Split value into bytes and run memset with stride.
+    const int value_size = sizeof(value);
+    char* buffer = (char*)begin;
+    char* value_bytes = (char*)(&value);
+    gpuError_t err;
+    EIGEN_UNUSED_VARIABLE(err)
+    
+    // If all value bytes are equal, then a single memset can be much faster.
+    bool use_single_memset = true;
+    for (int i=1; i<value_size; ++i) {
+      if (value_bytes[i] != value_bytes[0]) {
+        use_single_memset = false;
+      } 
+    }
+    
+    if (use_single_memset) {
+      err = gpuMemsetAsync(buffer, value_bytes[0], count * sizeof(T), stream_->stream());
+      gpu_assert(err == gpuSuccess);
+    } else {
+      for (int b=0; b<value_size; ++b) {
+        err = gpuMemset2DAsync(buffer+b, value_size, value_bytes[b], 1, count, stream_->stream());
+        gpu_assert(err == gpuSuccess);
+      }
+    }
+#else
+    EIGEN_UNUSED_VARIABLE(begin)
+    EIGEN_UNUSED_VARIABLE(end)
+    EIGEN_UNUSED_VARIABLE(value)
+    eigen_assert(false && "The default device should be used instead to generate kernel code");
 #endif
   }
 
@@ -325,7 +379,7 @@ struct GpuDevice {
     return stream_->deviceProperties().maxThreadsPerMultiProcessor;
   }
   EIGEN_STRONG_INLINE int sharedMemPerBlock() const {
-    return stream_->deviceProperties().sharedMemPerBlock;
+    return static_cast<int>(stream_->deviceProperties().sharedMemPerBlock);
   }
   EIGEN_STRONG_INLINE int majorDeviceVersion() const {
     return stream_->deviceProperties().major;

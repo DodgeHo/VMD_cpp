@@ -1,7 +1,7 @@
 # VMD_cpp
 # C++ implementation of Variational Mode Decomposition using Eigen3
 Written by: Dodge(Lang HE) asdsay@gmail.com
-Updated date: 2023-03-24
+Updated date: 2023-11-13
 
 VMD, aka Variational Mode Decomposition, is a signal processing tool that decompse the input signal into different band-limited IMFs. 
 Project **VMD_cpp**  is an imitation of [that in MATLAB](https://ww2.mathworks.cn/help/wavelet/ref/vmd.html). In this project, I used eigen3 to refactor VMD in C++, so that we can use it without MATLAB. 
@@ -12,4 +12,4 @@ This sample code was written in MSBuild. You can both run in Visual Studio 2022 
 If you are looking for document to describe Variational mode decomposition, please turn to the original paper [Variational Mode Decomposition](https://ieeexplore.ieee.org/document/6655981). You can also find the MATLAB codes here.
 
 
-Updated 2022-06-23: This VMD runs too slow. I tried to use OpenMP to make Eigen in parallel computing, but it couldn't work. Need to find another way in future.
+Updated 2023-11-13: This VMD runs too slow. I tried to use OpenMP again and again to make Eigen in parallel computing, but it still didn't work. So I did what I can, to make everything as fast as possible in Eigen. Hopefully this is good enough for someone using it.

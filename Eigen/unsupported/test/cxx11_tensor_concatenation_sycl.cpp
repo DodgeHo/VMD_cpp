@@ -175,6 +175,7 @@ template <typename DataType, typename Dev_selector> void tensorConcat_perDevice(
 }
 EIGEN_DECLARE_TEST(cxx11_tensor_concatenation_sycl) {
   for (const auto& device :Eigen::get_sycl_supported_devices()) {
+    CALL_SUBTEST(tensorConcat_perDevice<half>(device));
     CALL_SUBTEST(tensorConcat_perDevice<float>(device));
   }
 }

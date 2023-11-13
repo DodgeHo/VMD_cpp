@@ -7,7 +7,6 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-#define EIGEN_NO_STATIC_ASSERT
 #include "product.h"
 #include <Eigen/LU>
 
@@ -41,12 +40,12 @@ const TC& ref_prod(TC &C, const TA &A, const TB &B)
 }
 
 template<typename T, int Rows, int Cols, int Depth, int OC, int OA, int OB>
-typename internal::enable_if<! ( (Rows ==1&&Depth!=1&&OA==ColMajor)
+std::enable_if_t<! ( (Rows ==1&&Depth!=1&&OA==ColMajor)
                               || (Depth==1&&Rows !=1&&OA==RowMajor)
                               || (Cols ==1&&Depth!=1&&OB==RowMajor)
                               || (Depth==1&&Cols !=1&&OB==ColMajor)
                               || (Rows ==1&&Cols !=1&&OC==ColMajor)
-                              || (Cols ==1&&Rows !=1&&OC==RowMajor)),void>::type
+                              || (Cols ==1&&Rows !=1&&OC==RowMajor)),void>
 test_lazy_single(int rows, int cols, int depth)
 {
   Matrix<T,Rows,Depth,OA> A(rows,depth); A.setRandom();
@@ -70,7 +69,7 @@ void test_dynamic_bool()
   for(Index i=0;i<C.rows();++i)
     for(Index j=0;j<C.cols();++j)
       for(Index k=0;k<A.cols();++k)
-       D.coeffRef(i,j) |= A.coeff(i,k) & B.coeff(k,j);
+       D.coeffRef(i,j) |= (A.coeff(i,k) && B.coeff(k,j));
   C += A * B;
   VERIFY_IS_EQUAL(C, D);
 
@@ -81,12 +80,12 @@ void test_dynamic_bool()
 }
 
 template<typename T, int Rows, int Cols, int Depth, int OC, int OA, int OB>
-typename internal::enable_if<  ( (Rows ==1&&Depth!=1&&OA==ColMajor)
+std::enable_if_t<  ( (Rows ==1&&Depth!=1&&OA==ColMajor)
                               || (Depth==1&&Rows !=1&&OA==RowMajor)
                               || (Cols ==1&&Depth!=1&&OB==RowMajor)
                               || (Depth==1&&Cols !=1&&OB==ColMajor)
                               || (Rows ==1&&Cols !=1&&OC==ColMajor)
-                              || (Cols ==1&&Rows !=1&&OC==RowMajor)),void>::type
+                              || (Cols ==1&&Rows !=1&&OC==RowMajor)),void>
 test_lazy_single(int, int, int)
 {
 }
@@ -282,6 +281,25 @@ void product_small_regressions()
   }
 }
 
+template<typename T>
+void product_sweep(int max_m, int max_k, int max_n) {
+  using Matrix = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
+  for (int m = 1; m < max_m; ++m) {
+    for (int n = 1; n < max_n; ++n) {
+      Matrix C = Matrix::Zero(m, n);
+      Matrix Cref = Matrix::Zero(m, n);
+      for (int k = 1; k < max_k; ++k) {
+        Matrix A = Matrix::Random(m, k);
+        Matrix B = Matrix::Random(k, n);
+        C = A * B;
+        Cref.setZero();
+        ref_prod(Cref, A, B);
+        VERIFY_IS_APPROX(C, Cref);
+      }
+    }
+  }   
+}
+
 EIGEN_DECLARE_TEST(product_small)
 {
   for(int i = 0; i < g_repeat; i++) {
@@ -291,6 +309,7 @@ EIGEN_DECLARE_TEST(product_small)
     CALL_SUBTEST_3( product(Matrix3d()) );
     CALL_SUBTEST_4( product(Matrix4d()) );
     CALL_SUBTEST_5( product(Matrix4f()) );
+    CALL_SUBTEST_10( product(Matrix<bfloat16, 3, 2>()) );
     CALL_SUBTEST_6( product1x1<0>() );
 
     CALL_SUBTEST_11( test_lazy_l1<float>() );
@@ -317,6 +336,12 @@ EIGEN_DECLARE_TEST(product_small)
     CALL_SUBTEST_6( bug_1311<5>() );
 
     CALL_SUBTEST_9( test_dynamic_bool() );
+    
+    // Commonly specialized vectorized types.
+    CALL_SUBTEST_50( product_sweep<float>(10, 10, 10) );
+    CALL_SUBTEST_51( product_sweep<double>(10, 10, 10) );
+    CALL_SUBTEST_52( product_sweep<Eigen::half>(10, 10, 10) );
+    CALL_SUBTEST_53( product_sweep<Eigen::bfloat16>(10, 10, 10) );
   }
 
   CALL_SUBTEST_6( product_small_regressions<0>() );

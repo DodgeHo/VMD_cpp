@@ -13,6 +13,9 @@
 // evaluator for thread pool device
 #ifdef EIGEN_USE_THREADS
 
+// IWYU pragma: private
+#include "./InternalHeaderCheck.h"
+
 namespace Eigen {
 
 template<typename Indices, typename LeftArgType, typename RightArgType, typename OutputKernelType>
@@ -25,29 +28,27 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
   typedef TensorContractionEvaluatorBase<Self> Base;
 
   typedef TensorContractionOp<Indices, LeftArgType, RightArgType, OutputKernelType> XprType;
-  typedef typename internal::remove_const<typename XprType::Scalar>::type Scalar;
+  typedef std::remove_const_t<typename XprType::Scalar> Scalar;
   typedef typename XprType::Index Index;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
   typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
 
-  enum {
-    Layout = TensorEvaluator<LeftArgType, Device>::Layout,
-  };
+  static constexpr int Layout = TensorEvaluator<LeftArgType, Device>::Layout;
 
   // Most of the code is assuming that both input tensors are ColMajor. If the
   // inputs are RowMajor, we will "cheat" by swapping the LHS and RHS:
   // If we want to compute A * B = C, where A is LHS and B is RHS, the code
   // will pretend B is LHS and A is RHS.
-  typedef typename internal::conditional<
-    static_cast<int>(Layout) == static_cast<int>(ColMajor), LeftArgType, RightArgType>::type EvalLeftArgType;
-  typedef typename internal::conditional<
-    static_cast<int>(Layout) == static_cast<int>(ColMajor), RightArgType, LeftArgType>::type EvalRightArgType;
+  typedef std::conditional_t<
+    static_cast<int>(Layout) == static_cast<int>(ColMajor), LeftArgType, RightArgType> EvalLeftArgType;
+  typedef std::conditional_t<
+    static_cast<int>(Layout) == static_cast<int>(ColMajor), RightArgType, LeftArgType> EvalRightArgType;
 
-  static const int LDims =
+  static constexpr int LDims =
       internal::array_size<typename TensorEvaluator<EvalLeftArgType, Device>::Dimensions>::value;
-  static const int RDims =
+  static constexpr int RDims =
       internal::array_size<typename TensorEvaluator<EvalRightArgType, Device>::Dimensions>::value;
-  static const int ContractDims = internal::array_size<Indices>::value;
+  static constexpr int ContractDims = internal::array_size<Indices>::value;
 
   typedef array<Index, LDims> left_dim_mapper_t;
   typedef array<Index, RDims> right_dim_mapper_t;
@@ -56,13 +57,13 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
   typedef array<Index, LDims - ContractDims> left_nocontract_t;
   typedef array<Index, RDims - ContractDims> right_nocontract_t;
 
-  static const int NumDims = LDims + RDims - 2 * ContractDims;
+  static constexpr int NumDims = LDims + RDims - 2 * ContractDims;
 
   typedef DSizes<Index, NumDims> Dimensions;
 
   // typedefs needed in evalTo
-  typedef typename internal::remove_const<typename EvalLeftArgType::Scalar>::type LhsScalar;
-  typedef typename internal::remove_const<typename EvalRightArgType::Scalar>::type RhsScalar;
+  typedef std::remove_const_t<typename EvalLeftArgType::Scalar> LhsScalar;
+  typedef std::remove_const_t<typename EvalRightArgType::Scalar> RhsScalar;
   typedef typename internal::gebp_traits<LhsScalar, RhsScalar> Traits;
 
   typedef TensorEvaluator<EvalLeftArgType, Device> LeftEvaluator;
@@ -96,7 +97,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     //     context from the heap.
     //
     // (*) EvalParallelContext & EvalShardedByInnerDimContext owns all the state
-    // and temporary buffers, requried for executing the tensor contraction.
+    // and temporary buffers, required for executing the tensor contraction.
     // They are responsible for cleaning it up after contraction is done.
     static const bool IsEvalInSyncMode =
         std::is_same<DoneCallback, NoCallback>::value;
@@ -205,9 +206,9 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     }
 
     // Number of kernels for each dimension.
-    Index nm0 = divup(m, bm);
-    Index nn0 = divup(n, bn);
-    Index nk = divup(k, bk);
+    Index nm0 = numext::div_ceil(m, bm);
+    Index nn0 = numext::div_ceil(n, bn);
+    Index nk = numext::div_ceil(k, bk);
 
     // Calculate task grain size (number of kernels executed per task).
     // This task size coarsening serves two purposes:
@@ -225,8 +226,8 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
       gm = coarsenM(m, n, bm, bn, bk, gn, num_threads, shard_by_col);
     }
     // Number of tasks in each dimension.
-    Index nm = divup(nm0, gm);
-    Index nn = divup(nn0, gn);
+    Index nm = numext::div_ceil(nm0, gm);
+    Index nn = numext::div_ceil(nn0, gn);
 
     // If there is enough concurrency in the sharding dimension, we choose not
     // to paralellize by the other dimension, and execute all kernels in sync
@@ -599,7 +600,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     // These variable are rolling over 3 consecutive k slices: first two we are
     // actively executing + one to track completion of kernels in the second
     // slice.
-    static const Index P = 3;
+    static constexpr Index P = 3;
 
     // Handle to the allocated temporary storage for Lhs/Rhs blocks.
     BlockMemHandle packed_mem_;
@@ -698,7 +699,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
           !is_rhs && std::is_same<BlockType, LhsBlock>::value;
       static const bool kIsRhs =
           is_rhs && std::is_same<BlockType, RhsBlock>::value;
-      static_assert(kIsLhs || kIsRhs, "Unkown block type");
+      static_assert(kIsLhs || kIsRhs, "Unknown block type");
 
       using Blocks = ThreadLocalBlocks<BlockType>;
 
@@ -874,7 +875,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
                         lhs_.getSubMapper(m1 * bm_, k * bk_), bk(k), bm(m1));
 
       if (!parallel_pack_ && shard_by_col_) {
-        assert(!use_thread_local);
+        eigen_assert(!use_thread_local);
         signal_packing(k);
       } else {
         signal_switch(k + 1);
@@ -895,7 +896,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
         } else {
           // If we can't guarantee that all kernels in `k` slice will be
           // executed sequentially in current thread, it's no longer safe to use
-          // thread local memory in followig slices along the k dimensions.
+          // thread local memory in following slices along the k dimensions.
           eigen_assert(k > 0);
           can_use_thread_local_packed_[n].store(false,
                                                 std::memory_order_relaxed);
@@ -912,9 +913,9 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
           // On 10000x2x10000 mm zeroing can easily take half of time. Zero (bn
           // x m) row. Safe to do here because all kernels that will write to
           // this memory depend on completion of this task. Note: don't call
-          // device_.memset() here. device_.memset() blocks on thread pool
+          // device_.fill() here. device_.fill() blocks on thread pool
           // worker thread, which can lead to underutilization and deadlocks.
-          memset(buffer_ + n1 * bn_ * m_, 0, bn(n1) * m_ * sizeof(Scalar));
+          std::fill_n(buffer_ + n1 * bn_ * m_, bn(n1) * m_, Scalar(0));
         }
         kernel_.packRhs(&packed_rhs(n, k, n1, use_thread_local),
                         rhs_.getSubMapper(k * bk_, n1 * bn_), bk(k), bn(n1));
@@ -927,7 +928,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
           signal_kernel(m, n, k, sync, use_thread_local);
         }
       } else {
-        assert(!use_thread_local);
+        eigen_assert(!use_thread_local);
         signal_packing(k);
       }
     }
@@ -1129,9 +1130,9 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
           done(std::move(done_callback)),
           buffer_size_bytes(m * n * sizeof(Scalar)),
           block_size(blockSize(k, num_threads)),
-          num_blocks(divup<Index>(k, block_size)),
+          num_blocks(numext::div_ceil<Index>(k, block_size)),
           num_pending_blocks(internal::convert_index<int>(num_blocks)),
-          l0_ranges(divup<Index>(num_blocks, l0_size)),
+          l0_ranges(numext::div_ceil<Index>(num_blocks, l0_size)),
           l0_state(l0_ranges),
           block_buffers(num_blocks) {
       // Keep count of pending gemm tasks for each l0 range.
@@ -1433,10 +1434,10 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     static Index blockSize(Index k, int num_threads) {
       const auto round_up = [=](Index index) -> Index {
         const Index kmultiple = packet_size <= 8 ? 8 : packet_size;
-        return divup<Index>(index, kmultiple) * kmultiple;
+        return numext::div_ceil<Index>(index, kmultiple) * kmultiple;
       };
 
-      const Index target_block_size = round_up(divup<Index>(k, num_threads));
+      const Index target_block_size = round_up(numext::div_ceil<Index>(k, num_threads));
       const Index desired_min_block_size = 12 * packet_size;
 
       return numext::mini<Index>(
@@ -1484,19 +1485,19 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
                  int num_threads, bool shard_by_col) const {
     Index gm = 1;
     Index gm1 = 1;
-    Index nm0 = divup(m, bm);
+    Index nm0 = numext::div_ceil(m, bm);
     Index nm1 = nm0;
     for (;;) {
       // Find the next candidate for m grain size. It needs to result in
       // different number of blocks. E.g. if we have 10 kernels, we want to try
       // 5 and 10, but not 6, 7, 8 and 9.
-      while (gm1 <= nm0 && nm1 == divup(nm0, gm1)) gm1++;
+      while (gm1 <= nm0 && nm1 == numext::div_ceil(nm0, gm1)) gm1++;
       if (gm1 > nm0) break;
       // Check the candidate.
       int res = checkGrain(m, n, bm, bn, bk, gm1, gn, gm, gn, num_threads,
                            shard_by_col);
       if (res < 0) break;
-      nm1 = divup(nm0, gm1);
+      nm1 = numext::div_ceil(nm0, gm1);
       if (res == 0) continue;
       // Commit new grain size.
       gm = gm1;
@@ -1508,15 +1509,15 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
                  int num_threads, bool shard_by_col) const {
     Index gn = 1;
     Index gn1 = 1;
-    Index nn0 = divup(n, bn);
+    Index nn0 = numext::div_ceil(n, bn);
     Index nn1 = nn0;
     for (;;) {
-      while (gn1 <= nn0 && nn1 == divup(nn0, gn1)) gn1++;
+      while (gn1 <= nn0 && nn1 == numext::div_ceil(nn0, gn1)) gn1++;
       if (gn1 > nn0) break;
       int res = checkGrain(m, n, bm, bn, bk, gm, gn1, gm, gn, num_threads,
                            shard_by_col);
       if (res < 0) break;
-      nn1 = divup(nn0, gn1);
+      nn1 = numext::div_ceil(nn0, gn1);
       if (res == 0) continue;
       gn = gn1;
     }
@@ -1543,14 +1544,14 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     // But 2/4 yield 6/3 tasks, which gives us parallelism of 0.75 (at most 3/4
     // of cores will be busy). While grain size 3 gives us 4 tasks, which gives
     // us parallelism of 1 (we can load all cores).
-    Index nm0 = divup(m, bm);
-    Index nn0 = divup(n, bn);
-    Index new_tasks = divup(nm0, gm) * divup(nn0, gn);
+    Index nm0 = numext::div_ceil(m, bm);
+    Index nn0 = numext::div_ceil(n, bn);
+    Index new_tasks = numext::div_ceil(nm0, gm) * numext::div_ceil(nn0, gn);
     double new_parallelism = static_cast<double>(new_tasks) /
-                             (divup<int>(new_tasks, num_threads) * num_threads);
-    Index old_tasks = divup(nm0, oldgm) * divup(nn0, oldgn);
+                             (numext::div_ceil<Index>(new_tasks, num_threads) * num_threads);
+    Index old_tasks = numext::div_ceil(nm0, oldgm) * numext::div_ceil(nn0, oldgn);
     double old_parallelism = static_cast<double>(old_tasks) /
-                             (divup<int>(old_tasks, num_threads) * num_threads);
+                             (numext::div_ceil<Index>(old_tasks, num_threads) * num_threads);
     if (new_parallelism > old_parallelism || new_parallelism == 1) return 1;
     return 0;
   }

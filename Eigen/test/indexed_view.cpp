@@ -7,38 +7,15 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-#ifdef EIGEN_TEST_PART_2
-// Make sure we also check c++11 max implementation
-#define EIGEN_MAX_CPP_VER 11
-#endif
-
-#ifdef EIGEN_TEST_PART_3
-// Make sure we also check c++98 max implementation
-#define EIGEN_MAX_CPP_VER 03
-
-// We need to disable this warning when compiling with c++11 while limiting Eigen to c++98
-// Ideally we would rather configure the compiler to build in c++98 mode but this needs
-// to be done at the CMakeLists.txt level.
-#if defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 8))
-  #pragma GCC diagnostic ignored "-Wdeprecated"
-#endif
-
-#if defined(__GNUC__) && (__GNUC__ >=9)
-  #pragma GCC diagnostic ignored "-Wdeprecated-copy"
-#endif
-#if defined(__clang__) && (__clang_major__ >= 10)
-  #pragma clang diagnostic ignored "-Wdeprecated-copy"
-#endif
-
-#endif
-
 #include <valarray>
 #include <vector>
 #include "main.h"
 
-#if EIGEN_HAS_CXX11
+using Eigen::placeholders::all;
+using Eigen::placeholders::last;
+using Eigen::placeholders::lastp1;
+using Eigen::placeholders::lastN;
 #include <array>
-#endif
 
 typedef std::pair<Index,Index> IndexPair;
 
@@ -63,7 +40,7 @@ bool match(const T& xpr, std::string ref, std::string str_xpr = "") {
 #define MATCH(X,R) match(X, R, #X)
 
 template<typename T1,typename T2>
-typename internal::enable_if<internal::is_same<T1,T2>::value,bool>::type
+std::enable_if_t<internal::is_same<T1,T2>::value,bool>
 is_same_eq(const T1& a, const T2& b)
 {
   return (a == b).all();
@@ -82,7 +59,7 @@ bool is_same_seq(const T1& a, const T2& b)
 }
 
 template<typename T1,typename T2>
-typename internal::enable_if<internal::is_same<T1,T2>::value,bool>::type
+std::enable_if_t<internal::is_same<T1,T2>::value,bool>
 is_same_seq_type(const T1& a, const T2& b)
 {
   return is_same_seq(a,b);
@@ -102,11 +79,7 @@ void check_indexed_view()
   ArrayXd a = ArrayXd::LinSpaced(n,0,n-1);
   Array<double,1,Dynamic> b = a.transpose();
 
-  #if EIGEN_COMP_CXXVER>=14
   ArrayXXi A = ArrayXXi::NullaryExpr(n,n, std::ref(encode));
-  #else
-  ArrayXXi A = ArrayXXi::NullaryExpr(n,n, std::ptr_fun(&encode));
-  #endif
 
   for(Index i=0; i<n; ++i)
     for(Index j=0; j<n; ++j)
@@ -220,7 +193,6 @@ void check_indexed_view()
   VERIFY( is_same_seq_type( seqN(2,fix<5>(5),fix<-2>), seqN(2,fix<5>,fix<-2>()) ) );
 
   VERIFY( is_same_seq_type( seq(2,fix<5>), seqN(2,4) ) );
-#if EIGEN_HAS_CXX11
   VERIFY( is_same_seq_type( seq(fix<2>,fix<5>), seqN(fix<2>,fix<4>) ) );
   VERIFY( is_same_seq( seqN(2,std::integral_constant<int,5>(),std::integral_constant<int,-2>()), seqN(2,fix<5>,fix<-2>()) ) );
   VERIFY( is_same_seq( seq(std::integral_constant<int,1>(),std::integral_constant<int,5>(),std::integral_constant<int,2>()),
@@ -231,10 +203,6 @@ void check_indexed_view()
 
   VERIFY( is_same_seq_type( seqN(2,std::integral_constant<int,5>()), seqN(2,fix<5>) ) );
   VERIFY( is_same_seq_type( seq(std::integral_constant<int,1>(),std::integral_constant<int,5>()), seq(fix<1>,fix<5>) ) );
-#else
-  // sorry, no compile-time size recovery in c++98/03
-  VERIFY( is_same_seq( seq(fix<2>,fix<5>), seqN(fix<2>,fix<4>) ) );
-#endif
 
   VERIFY( (A(seqN(2,fix<5>), 5)).RowsAtCompileTime == 5);
   VERIFY( (A(4, all)).ColsAtCompileTime == Dynamic);
@@ -310,7 +278,6 @@ void check_indexed_view()
                       A(seq(last-5,last-1,2), seqN(last-3,3,fix<-2>)).reverse() );
   }
 
-#if EIGEN_HAS_CXX11
   // check lastN
   VERIFY_IS_APPROX( a(lastN(3)), a.tail(3) );
   VERIFY( MATCH( a(lastN(3)), "7\n8\n9" ) );
@@ -322,23 +289,74 @@ void check_indexed_view()
   VERIFY( (A(all, std::array<int,4>{{1,3,2,4}})).ColsAtCompileTime == 4);
 
   VERIFY_IS_APPROX( (A(std::array<int,3>{{1,3,5}}, std::array<int,4>{{9,6,3,0}})), A(seqN(1,3,2), seqN(9,4,-3)) );
+  VERIFY_IS_EQUAL(A(std::array<int, 3>{1, 3, 5}, std::array<int, 4>{3, 1, 6, 5}).RowsAtCompileTime, 3);
+  VERIFY_IS_EQUAL(A(std::array<int, 3>{1, 3, 5}, std::array<int, 4>{3, 1, 6, 5}).ColsAtCompileTime, 4);
 
-#if EIGEN_HAS_STATIC_ARRAY_TEMPLATE
-  VERIFY_IS_APPROX( A({3, 1, 6, 5}, all), A(std::array<int,4>{{3, 1, 6, 5}}, all) );
-  VERIFY_IS_APPROX( A(all,{3, 1, 6, 5}), A(all,std::array<int,4>{{3, 1, 6, 5}}) );
-  VERIFY_IS_APPROX( A({1,3,5},{3, 1, 6, 5}), A(std::array<int,3>{{1,3,5}},std::array<int,4>{{3, 1, 6, 5}}) );
+  VERIFY_IS_EQUAL( a(std::array<int,3>{1,3,5}).SizeAtCompileTime, 3 );
+  VERIFY_IS_EQUAL( b(std::array<int,3>{1,3,5}).SizeAtCompileTime, 3 );
 
-  VERIFY_IS_EQUAL( A({1,3,5},{3, 1, 6, 5}).RowsAtCompileTime, 3 );
-  VERIFY_IS_EQUAL( A({1,3,5},{3, 1, 6, 5}).ColsAtCompileTime, 4 );
+  // check different index types (C-style array, STL container, Eigen type)
+  {
+    Index size = 10;
+    ArrayXd r = ArrayXd::Random(size);
+    ArrayXi idx = ArrayXi::EqualSpaced(size, 0, 1);
+    std::shuffle(idx.begin(), idx.end(), std::random_device());
 
-  VERIFY_IS_APPROX( a({3, 1, 6, 5}), a(std::array<int,4>{{3, 1, 6, 5}}) );
-  VERIFY_IS_EQUAL( a({1,3,5}).SizeAtCompileTime, 3 );
+    int c_array[3] = { idx[0], idx[1], idx[2] };
+    std::vector<int> std_vector{ idx[0], idx[1], idx[2] };
+    Matrix<int, 3, 1> eigen_matrix{ idx[0], idx[1], idx[2] };
 
-  VERIFY_IS_APPROX( b({3, 1, 6, 5}), b(std::array<int,4>{{3, 1, 6, 5}}) );
-  VERIFY_IS_EQUAL( b({1,3,5}).SizeAtCompileTime, 3 );
-#endif
+    // non-const access
+    VERIFY_IS_CWISE_EQUAL(r({ idx[0], idx[1], idx[2] }), r(c_array));
+    VERIFY_IS_CWISE_EQUAL(r({ idx[0], idx[1], idx[2] }), r(std_vector));
+    VERIFY_IS_CWISE_EQUAL(r({ idx[0], idx[1], idx[2] }), r(eigen_matrix));
+    VERIFY_IS_CWISE_EQUAL(r(std_vector), r(c_array));
+    VERIFY_IS_CWISE_EQUAL(r(std_vector), r(eigen_matrix));
+    VERIFY_IS_CWISE_EQUAL(r(eigen_matrix), r(c_array));
 
-#endif
+    const ArrayXd& r_ref = r;
+    // const access
+    VERIFY_IS_CWISE_EQUAL(r_ref({ idx[0], idx[1], idx[2] }), r_ref(c_array));
+    VERIFY_IS_CWISE_EQUAL(r_ref({ idx[0], idx[1], idx[2] }), r_ref(std_vector));
+    VERIFY_IS_CWISE_EQUAL(r_ref({ idx[0], idx[1], idx[2] }), r_ref(eigen_matrix));
+    VERIFY_IS_CWISE_EQUAL(r_ref(std_vector), r_ref(c_array));
+    VERIFY_IS_CWISE_EQUAL(r_ref(std_vector), r_ref(eigen_matrix));
+    VERIFY_IS_CWISE_EQUAL(r_ref(eigen_matrix), r_ref(c_array));
+  }
+
+  {
+    Index rows = 8;
+    Index cols = 11;
+    ArrayXXd R = ArrayXXd::Random(rows, cols);
+    ArrayXi r_idx = ArrayXi::EqualSpaced(rows, 0, 1);
+    ArrayXi c_idx = ArrayXi::EqualSpaced(cols, 0, 1);
+    std::shuffle(r_idx.begin(), r_idx.end(), std::random_device());
+    std::shuffle(c_idx.begin(), c_idx.end(), std::random_device());
+
+    int c_array_rows[3] = { r_idx[0], r_idx[1], r_idx[2] };
+    int c_array_cols[4] = { c_idx[0], c_idx[1], c_idx[2], c_idx[3] };
+    std::vector<int> std_vector_rows{ r_idx[0], r_idx[1], r_idx[2] };
+    std::vector<int> std_vector_cols{ c_idx[0], c_idx[1], c_idx[2], c_idx[3] };
+    Matrix<int, 3, 1> eigen_matrix_rows{ r_idx[0], r_idx[1], r_idx[2] };
+    Matrix<int, 4, 1> eigen_matrix_cols{ c_idx[0], c_idx[1], c_idx[2], c_idx[3] };
+
+    // non-const access
+    VERIFY_IS_CWISE_EQUAL(R({ r_idx[0], r_idx[1], r_idx[2] }, { c_idx[0], c_idx[1], c_idx[2], c_idx[3] }), R(c_array_rows, c_array_cols));
+    VERIFY_IS_CWISE_EQUAL(R({ r_idx[0], r_idx[1], r_idx[2] }, { c_idx[0], c_idx[1], c_idx[2], c_idx[3] }), R(std_vector_rows, std_vector_cols));
+    VERIFY_IS_CWISE_EQUAL(R({ r_idx[0], r_idx[1], r_idx[2] }, { c_idx[0], c_idx[1], c_idx[2], c_idx[3] }), R(eigen_matrix_rows, eigen_matrix_cols));
+    VERIFY_IS_CWISE_EQUAL(R(std_vector_rows, std_vector_cols), R(c_array_rows, c_array_cols));
+    VERIFY_IS_CWISE_EQUAL(R(std_vector_rows, std_vector_cols), R(eigen_matrix_rows, eigen_matrix_cols));
+    VERIFY_IS_CWISE_EQUAL(R(eigen_matrix_rows, eigen_matrix_cols), R(c_array_rows, c_array_cols));
+
+    const ArrayXXd& R_ref = R;
+    // const access
+    VERIFY_IS_CWISE_EQUAL(R_ref({ r_idx[0], r_idx[1], r_idx[2] }, { c_idx[0], c_idx[1], c_idx[2], c_idx[3] }), R_ref(c_array_rows, c_array_cols));
+    VERIFY_IS_CWISE_EQUAL(R_ref({ r_idx[0], r_idx[1], r_idx[2] }, { c_idx[0], c_idx[1], c_idx[2], c_idx[3] }), R_ref(std_vector_rows, std_vector_cols));
+    VERIFY_IS_CWISE_EQUAL(R_ref({ r_idx[0], r_idx[1], r_idx[2] }, { c_idx[0], c_idx[1], c_idx[2], c_idx[3] }), R_ref(eigen_matrix_rows, eigen_matrix_cols));
+    VERIFY_IS_CWISE_EQUAL(R_ref(std_vector_rows, std_vector_cols), R_ref(c_array_rows, c_array_cols));
+    VERIFY_IS_CWISE_EQUAL(R_ref(std_vector_rows, std_vector_cols), R_ref(eigen_matrix_rows, eigen_matrix_cols));
+    VERIFY_IS_CWISE_EQUAL(R_ref(eigen_matrix_rows, eigen_matrix_cols), R_ref(c_array_rows, c_array_cols));
+  }
 
   // check mat(i,j) with weird types for i and j
   {
@@ -396,13 +414,39 @@ void check_indexed_view()
   a(XX) = 1;
   A(XX,YY) = 1;
   // Anonymous enums only work with C++11
-#if EIGEN_HAS_CXX11
   enum { X=0, Y=1 };
   a(X) = 1;
   A(X,Y) = 1;
   A(XX,Y) = 1;
   A(X,YY) = 1;
-#endif
+  // check symbolic indices
+  a(last) = 1.0;
+  A(last, last) = 1;
+  // check weird non-const, non-lvalue scenarios
+  {
+    // in these scenarios, the objects are not declared 'const', and the compiler will atttempt to use the non-const
+    // overloads without intervention
+
+    // non-const map to a const object
+    Map<const ArrayXd> a_map(a.data(), a.size());
+    Map<const ArrayXXi> A_map(A.data(), A.rows(), A.cols());
+
+    VERIFY_IS_EQUAL(a_map(last), a.coeff(a.size() - 1));
+    VERIFY_IS_EQUAL(A_map(last, last), A.coeff(A.rows() - 1, A.cols() - 1));
+
+    // non-const expressions that have no modifiable data
+    using Op = internal::scalar_constant_op<double>;
+    using VectorXpr = CwiseNullaryOp<Op, VectorXd>;
+    using MatrixXpr = CwiseNullaryOp<Op, MatrixXd>;
+    double constant_val = internal::random<double>();
+    Op op(constant_val);
+    VectorXpr vectorXpr(10, 1, op);
+    MatrixXpr matrixXpr(8, 11, op);
+
+    VERIFY_IS_EQUAL(vectorXpr.coeff(vectorXpr.size() - 1), vectorXpr(last));
+    VERIFY_IS_EQUAL(matrixXpr.coeff(matrixXpr.rows() - 1, matrixXpr.cols() - 1), matrixXpr(last, last));
+  }
+
 
   // Check compilation of varying integer types as index types:
   Index i = n/2;
@@ -442,13 +486,21 @@ void check_indexed_view()
     VERIFY( MATCH( A(all,1)(1), "101"));
   }
 
-#if EIGEN_HAS_CXX11
+  // bug #2375: indexing over matrices of dim >128 should compile on gcc
+  {
+    Matrix<double, 513, 3> large_mat = Matrix<double, 513, 3>::Random();
+    std::array<int, 2> test_indices = {0, 1};
+    Matrix<double, 513, 2> thin_slice = large_mat(all, test_indices);
+    for(int col = 0; col < int(test_indices.size()); ++col)
+      for(int row = 0; row < large_mat.rows(); ++row)
+        VERIFY_IS_EQUAL( thin_slice(row, col), large_mat(row, col) );
+  }
+
   //Bug IndexView with a single static row should be RowMajor:
   {
     // A(1, seq(0,2,1)).cwiseAbs().colwise().replicate(2).eval();
     STATIC_CHECK(( (internal::evaluator<decltype( A(1,seq(0,2,1)) )>::Flags & RowMajorBit) == RowMajorBit ));
   }
-#endif
 
 }
 
@@ -456,8 +508,6 @@ EIGEN_DECLARE_TEST(indexed_view)
 {
 //   for(int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1( check_indexed_view() );
-    CALL_SUBTEST_2( check_indexed_view() );
-    CALL_SUBTEST_3( check_indexed_view() );
 //   }
 
   // static checks of some internals:

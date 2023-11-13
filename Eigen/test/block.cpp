@@ -7,11 +7,10 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-#define EIGEN_NO_STATIC_ASSERT // otherwise we fail at compile time on unused paths
 #include "main.h"
 
 template<typename MatrixType, typename Index, typename Scalar>
-typename Eigen::internal::enable_if<!NumTraits<typename MatrixType::Scalar>::IsComplex,typename MatrixType::Scalar>::type
+std::enable_if_t<!NumTraits<typename MatrixType::Scalar>::IsComplex,typename MatrixType::Scalar>
 block_real_only(const MatrixType &m1, Index r1, Index r2, Index c1, Index c2, const Scalar& s1) {
   // check cwise-Functions:
   VERIFY_IS_APPROX(m1.row(r1).cwiseMax(s1), m1.cwiseMax(s1).row(r1));
@@ -24,17 +23,31 @@ block_real_only(const MatrixType &m1, Index r1, Index r2, Index c1, Index c2, co
 }
 
 template<typename MatrixType, typename Index, typename Scalar>
-typename Eigen::internal::enable_if<NumTraits<typename MatrixType::Scalar>::IsComplex,typename MatrixType::Scalar>::type
+std::enable_if_t<NumTraits<typename MatrixType::Scalar>::IsComplex,typename MatrixType::Scalar>
 block_real_only(const MatrixType &, Index, Index, Index, Index, const Scalar&) {
   return Scalar(0);
 }
 
 // Check at compile-time that T1==T2, and at runtime-time that a==b
 template<typename T1,typename T2>
-typename internal::enable_if<internal::is_same<T1,T2>::value,bool>::type
+std::enable_if_t<internal::is_same<T1,T2>::value,bool>
 is_same_block(const T1& a, const T2& b)
 {
   return a.isApprox(b);
+}
+
+template <typename MatrixType>
+std::enable_if_t<((MatrixType::Flags&RowMajorBit)==0),void>
+check_left_top(const MatrixType& m, Index r, Index c,
+               Index rows, Index /*unused*/) {
+  if(c > 0) VERIFY_IS_EQUAL(m.leftCols(c).coeff(r+c*rows), m(r,c));
+}
+
+template <typename MatrixType>
+std::enable_if_t<((MatrixType::Flags&RowMajorBit)!=0),void>
+check_left_top(const MatrixType& m,  Index r, Index c,
+               Index /*unused*/, Index cols) {
+  if(r > 0) VERIFY_IS_EQUAL(m.topRows(r).coeff(c+r*cols), m(r,c));
 }
 
 template<typename MatrixType> void block(const MatrixType& m)
@@ -79,7 +92,8 @@ template<typename MatrixType> void block(const MatrixType& m)
   VERIFY_IS_APPROX(m1.col(c1), m1_copy.col(c1) + s1 * m1_copy.col(c2));
   m1.col(c1).col(0) += s1 * m1_copy.col(c2);
   VERIFY_IS_APPROX(m1.col(c1), m1_copy.col(c1) + Scalar(2) * s1 * m1_copy.col(c2));
-  
+
+  check_left_top(m1,r1,c1,rows,cols);
   
   //check block()
   Matrix<Scalar,Dynamic,Dynamic> b1(1,1); b1(0,0) = m1(r1,c1);
@@ -135,19 +149,14 @@ template<typename MatrixType> void block(const MatrixType& m)
   }
 
   // stress some basic stuffs with block matrices
-  VERIFY(numext::real(ones.col(c1).sum()) == RealScalar(rows));
-  VERIFY(numext::real(ones.row(r1).sum()) == RealScalar(cols));
+  VERIFY_IS_EQUAL(numext::real(ones.col(c1).sum()), RealScalar(rows));
+  VERIFY_IS_EQUAL(numext::real(ones.row(r1).sum()), RealScalar(cols));
 
-  VERIFY(numext::real(ones.col(c1).dot(ones.col(c2))) == RealScalar(rows));
-  VERIFY(numext::real(ones.row(r1).dot(ones.row(r2))) == RealScalar(cols));
+  VERIFY_IS_EQUAL(numext::real(ones.col(c1).dot(ones.col(c2))), RealScalar(rows));
+  VERIFY_IS_EQUAL(numext::real(ones.row(r1).dot(ones.row(r2))), RealScalar(cols));
   
   // check that linear acccessors works on blocks
   m1 = m1_copy;
-  if((MatrixType::Flags&RowMajorBit)==0)
-    VERIFY_IS_EQUAL(m1.leftCols(c1).coeff(r1+c1*rows), m1(r1,c1));
-  else
-    VERIFY_IS_EQUAL(m1.topRows(r1).coeff(c1+r1*cols), m1(r1,c1));
-  
 
   // now test some block-inside-of-block.
   
@@ -213,14 +222,6 @@ template<typename MatrixType> void block(const MatrixType& m)
   VERIFY_IS_EQUAL( ((m1*1).template block<Dynamic,1>(1,0,0,1)), m1.block(1,0,0,1));
   VERIFY_IS_EQUAL( ((m1*1).template block<1,Dynamic>(0,1,1,0)), m1.block(0,1,1,0));
 
-  if (rows>=2 && cols>=2)
-  {
-    VERIFY_RAISES_ASSERT( m1 += m1.col(0) );
-    VERIFY_RAISES_ASSERT( m1 -= m1.col(0) );
-    VERIFY_RAISES_ASSERT( m1.array() *= m1.col(0).array() );
-    VERIFY_RAISES_ASSERT( m1.array() /= m1.col(0).array() );
-  }
-
   VERIFY_IS_EQUAL( m1.template subVector<Horizontal>(r1), m1.row(r1) );
   VERIFY_IS_APPROX( (m1+m1).template subVector<Horizontal>(r1), (m1+m1).row(r1) );
   VERIFY_IS_EQUAL( m1.template subVector<Vertical>(c1), m1.col(c1) );
@@ -240,12 +241,34 @@ template<typename MatrixType> void block(const MatrixType& m)
 }
 
 
+
 template<typename MatrixType>
-void compare_using_data_and_stride(const MatrixType& m)
+std::enable_if_t<MatrixType::IsVectorAtCompileTime,void>
+compare_using_data_and_stride(const MatrixType& m)
 {
   Index rows = m.rows();
   Index cols = m.cols();
   Index size = m.size();
+  Index innerStride = m.innerStride();
+  Index rowStride = m.rowStride();
+  Index colStride = m.colStride();
+  const typename MatrixType::Scalar* data = m.data();
+
+  for(int j=0;j<cols;++j)
+    for(int i=0;i<rows;++i)
+      VERIFY(m.coeff(i,j) == data[i*rowStride + j*colStride]);
+
+  VERIFY(innerStride == int((&m.coeff(1))-(&m.coeff(0))));
+  for (int i=0;i<size;++i)
+    VERIFY(m.coeff(i) == data[i*innerStride]);
+}
+
+template<typename MatrixType>
+std::enable_if_t<!MatrixType::IsVectorAtCompileTime,void>
+compare_using_data_and_stride(const MatrixType& m)
+{
+  Index rows = m.rows();
+  Index cols = m.cols();
   Index innerStride = m.innerStride();
   Index outerStride = m.outerStride();
   Index rowStride = m.rowStride();
@@ -256,21 +279,11 @@ void compare_using_data_and_stride(const MatrixType& m)
     for(int i=0;i<rows;++i)
       VERIFY(m.coeff(i,j) == data[i*rowStride + j*colStride]);
 
-  if(!MatrixType::IsVectorAtCompileTime)
-  {
-    for(int j=0;j<cols;++j)
-      for(int i=0;i<rows;++i)
-        VERIFY(m.coeff(i,j) == data[(MatrixType::Flags&RowMajorBit)
-                                     ? i*outerStride + j*innerStride
-                                     : j*outerStride + i*innerStride]);
-  }
-
-  if(MatrixType::IsVectorAtCompileTime)
-  {
-    VERIFY(innerStride == int((&m.coeff(1))-(&m.coeff(0))));
-    for (int i=0;i<size;++i)
-      VERIFY(m.coeff(i) == data[i*innerStride]);
-  }
+  for(int j=0;j<cols;++j)
+    for(int i=0;i<rows;++i)
+      VERIFY(m.coeff(i,j) == data[(MatrixType::Flags&RowMajorBit)
+                                  ? i*outerStride + j*innerStride
+                                  : j*outerStride + i*innerStride]);
 }
 
 template<typename MatrixType>
@@ -293,6 +306,43 @@ void data_and_stride(const MatrixType& m)
   compare_using_data_and_stride(m1.col(c1).transpose());
 }
 
+
+template <typename BaseXpr, typename Xpr = BaseXpr, int Depth = 0>
+struct unwind_test_impl {
+  static void run(Xpr& xpr) {
+    Index startRow = internal::random<Index>(0, xpr.rows() / 5);
+    Index startCol = internal::random<Index>(0, xpr.cols() / 6);
+    Index rows = xpr.rows() / 3;
+    Index cols = xpr.cols() / 2;
+    // test equivalence of const expressions
+    const Block<const Xpr> constNestedBlock(xpr, startRow, startCol, rows, cols);
+    const Block<const BaseXpr> constUnwoundBlock = constNestedBlock.unwind();
+    VERIFY_IS_CWISE_EQUAL(constNestedBlock, constUnwoundBlock);
+    // modify a random element in each representation and test equivalence of non-const expressions
+    Block<Xpr> nestedBlock(xpr, startRow, startCol, rows, cols);
+    Block<BaseXpr> unwoundBlock = nestedBlock.unwind();
+    Index r1 = internal::random<Index>(0, rows - 1);
+    Index c1 = internal::random<Index>(0, cols - 1);
+    Index r2 = internal::random<Index>(0, rows - 1);
+    Index c2 = internal::random<Index>(0, cols - 1);
+    nestedBlock.coeffRef(r1, c1) = internal::random<typename DenseBase<Xpr>::Scalar>();
+    unwoundBlock.coeffRef(r2, c2) = internal::random<typename DenseBase<Xpr>::Scalar>();
+    VERIFY_IS_CWISE_EQUAL(nestedBlock, unwoundBlock);
+    unwind_test_impl<BaseXpr, Block<Xpr>, Depth + 1>::run(nestedBlock);
+  }
+};
+
+template <typename BaseXpr, typename Xpr>
+struct unwind_test_impl<BaseXpr, Xpr, 4> {
+  static void run(const Xpr&) {}
+};
+
+template <typename BaseXpr>
+void unwind_test(const BaseXpr&) {
+  BaseXpr xpr = BaseXpr::Random(100, 100);
+  unwind_test_impl<BaseXpr>::run(xpr);
+}
+
 EIGEN_DECLARE_TEST(block)
 {
   for(int i = 0; i < g_repeat; i++) {
@@ -307,6 +357,7 @@ EIGEN_DECLARE_TEST(block)
     CALL_SUBTEST_7( block(Matrix<int,Dynamic,Dynamic,RowMajor>(internal::random(2,50), internal::random(2,50))) );
 
     CALL_SUBTEST_8( block(Matrix<float,Dynamic,4>(3, 4)) );
+    CALL_SUBTEST_9( unwind_test(MatrixXf()));
 
 #ifndef EIGEN_DEFAULT_TO_ROW_MAJOR
     CALL_SUBTEST_6( data_and_stride(MatrixXf(internal::random(5,50), internal::random(5,50))) );

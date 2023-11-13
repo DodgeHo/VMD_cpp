@@ -10,6 +10,9 @@
 #ifndef EIGEN_STEM_FUNCTION
 #define EIGEN_STEM_FUNCTION
 
+// IWYU pragma: private
+#include "./InternalHeaderCheck.h"
+
 namespace Eigen { 
 
 namespace internal {

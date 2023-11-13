@@ -20,6 +20,7 @@ EIGEN_DECLARE_TEST(mpreal_support)
   std::cerr << "highest =         " << NumTraits<mpreal>::highest() << "\n";
   std::cerr << "lowest =          " << NumTraits<mpreal>::lowest() << "\n";
   std::cerr << "digits10 =        " << NumTraits<mpreal>::digits10() << "\n";
+  std::cerr << "max_digits10 =    " << NumTraits<mpreal>::max_digits10() << "\n";
 
   for(int i = 0; i < g_repeat; i++) {
     int s = Eigen::internal::random<int>(1,100);

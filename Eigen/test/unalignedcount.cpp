@@ -32,6 +32,7 @@ EIGEN_DECLARE_TEST(unalignedcount)
 {
   #if defined(EIGEN_VECTORIZE_AVX512)
   VectorXf a(48), b(48);
+  a.fill(0); b.fill(1);
   VERIFY_ALIGNED_UNALIGNED_COUNT(a += b, 6, 0, 3, 0);
   VERIFY_ALIGNED_UNALIGNED_COUNT(a.segment(0,48) += b.segment(0,48), 3, 3, 3, 0);
   VERIFY_ALIGNED_UNALIGNED_COUNT(a.segment(0,48) -= b.segment(0,48), 3, 3, 3, 0);
@@ -39,6 +40,7 @@ EIGEN_DECLARE_TEST(unalignedcount)
   VERIFY_ALIGNED_UNALIGNED_COUNT(a.segment(0,48) /= 3.5, 3, 0, 3, 0);
   #elif defined(EIGEN_VECTORIZE_AVX)
   VectorXf a(40), b(40);
+  a.fill(0); b.fill(1);
   VERIFY_ALIGNED_UNALIGNED_COUNT(a += b, 10, 0, 5, 0);
   VERIFY_ALIGNED_UNALIGNED_COUNT(a.segment(0,40) += b.segment(0,40), 5, 5, 5, 0);
   VERIFY_ALIGNED_UNALIGNED_COUNT(a.segment(0,40) -= b.segment(0,40), 5, 5, 5, 0);
@@ -46,6 +48,7 @@ EIGEN_DECLARE_TEST(unalignedcount)
   VERIFY_ALIGNED_UNALIGNED_COUNT(a.segment(0,40) /= 3.5, 5, 0, 5, 0);
   #elif defined(EIGEN_VECTORIZE_SSE)
   VectorXf a(40), b(40);
+  a.fill(0); b.fill(1);
   VERIFY_ALIGNED_UNALIGNED_COUNT(a += b, 20, 0, 10, 0);
   VERIFY_ALIGNED_UNALIGNED_COUNT(a.segment(0,40) += b.segment(0,40), 10, 10, 10, 0);
   VERIFY_ALIGNED_UNALIGNED_COUNT(a.segment(0,40) -= b.segment(0,40), 10, 10, 10, 0);

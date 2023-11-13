@@ -13,15 +13,12 @@
 
 template<typename MatrixType> void inverse_permutation_4x4()
 {
-  typedef typename MatrixType::Scalar Scalar;
   Vector4i indices(0,1,2,3);
   for(int i = 0; i < 24; ++i)
   {
     MatrixType m = PermutationMatrix<4>(indices);
     MatrixType inv = m.inverse();
-    double error = double( (m*inv-MatrixType::Identity()).norm() / NumTraits<Scalar>::epsilon() );
-    EIGEN_DEBUG_VAR(error)
-    VERIFY(error == 0.0);
+    VERIFY_IS_APPROX(m*inv, MatrixType::Identity());
     std::next_permutation(indices.data(),indices.data()+4);
   }
 }

@@ -10,6 +10,9 @@
 #ifndef EIGEN_CXX11_TENSOR_TENSOR_CONTRACTION_H
 #define EIGEN_CXX11_TENSOR_TENSOR_CONTRACTION_H
 
+// IWYU pragma: private
+#include "./InternalHeaderCheck.h"
+
 namespace Eigen {
 
 /** \class TensorContraction
@@ -25,8 +28,8 @@ template<typename Dimensions, typename LhsXprType, typename RhsXprType, typename
 struct traits<TensorContractionOp<Dimensions, LhsXprType, RhsXprType, OutputKernelType> >
 {
   // Type promotion to handle the case where the types of the lhs and the rhs are different.
-  typedef typename gebp_traits<typename remove_const<typename LhsXprType::Scalar>::type,
-                               typename remove_const<typename RhsXprType::Scalar>::type>::ResScalar Scalar;
+  typedef typename gebp_traits<std::remove_const_t<typename LhsXprType::Scalar>,
+                               std::remove_const_t<typename RhsXprType::Scalar>>::ResScalar Scalar;
 
   typedef typename promote_storage_type<typename traits<LhsXprType>::StorageKind,
                                         typename traits<RhsXprType>::StorageKind>::ret StorageKind;
@@ -34,15 +37,15 @@ struct traits<TensorContractionOp<Dimensions, LhsXprType, RhsXprType, OutputKern
                                       typename traits<RhsXprType>::Index>::type Index;
   typedef typename LhsXprType::Nested LhsNested;
   typedef typename RhsXprType::Nested RhsNested;
-  typedef typename remove_reference<LhsNested>::type _LhsNested;
-  typedef typename remove_reference<RhsNested>::type _RhsNested;
+  typedef std::remove_reference_t<LhsNested> LhsNested_;
+  typedef std::remove_reference_t<RhsNested> RhsNested_;
 
   // From NumDims below.
-  static const int NumDimensions = traits<LhsXprType>::NumDimensions + traits<RhsXprType>::NumDimensions - 2 * array_size<Dimensions>::value;
-  static const int Layout = traits<LhsXprType>::Layout;
-  typedef typename conditional<Pointer_type_promotion<typename LhsXprType::Scalar, Scalar>::val,
-                               typename traits<LhsXprType>::PointerType,
-                               typename traits<RhsXprType>::PointerType>::type
+  static constexpr int NumDimensions = traits<LhsXprType>::NumDimensions + traits<RhsXprType>::NumDimensions - 2 * array_size<Dimensions>::value;
+  static constexpr int Layout = traits<LhsXprType>::Layout;
+  typedef std::conditional_t<Pointer_type_promotion<typename LhsXprType::Scalar, Scalar>::val,
+                        typename traits<LhsXprType>::PointerType,
+                        typename traits<RhsXprType>::PointerType>
       PointerType;
 
   enum {
@@ -71,7 +74,7 @@ struct traits<TensorEvaluator<const TensorContractionOp<Indices_, LeftArgType_, 
   typedef Device_ Device;
 
   // From NumDims below.
-  static const int NumDimensions = traits<LeftArgType_>::NumDimensions + traits<RightArgType_>::NumDimensions - 2 * array_size<Indices_>::value;
+  static constexpr int NumDimensions = traits<LeftArgType_>::NumDimensions + traits<RightArgType_>::NumDimensions - 2 * array_size<Indices_>::value;
 };
 
 // Helper class to allocate and deallocate temporary memory for packed buffers.
@@ -89,9 +92,8 @@ struct TensorContractionBlockMemAllocator {
     eigen_assert(rhs_block);
     BlockSizes sz = ComputeLhsRhsBlockSizes(bm, bk, bn);
     char* block_mem = static_cast<char*>(d.allocate(sz.lhs_size + sz.rhs_size));
-    eigen_assert(block_mem);
-    *lhs_block = reinterpret_cast<LhsScalar*>(block_mem);
-    *rhs_block = reinterpret_cast<RhsScalar*>(block_mem + sz.lhs_size);
+    *lhs_block = static_cast<LhsScalar*>(static_cast<void*>(block_mem));
+    *rhs_block = static_cast<RhsScalar*>(static_cast<void*>(block_mem + sz.lhs_size));
     return block_mem;
   }
 
@@ -114,12 +116,12 @@ struct TensorContractionBlockMemAllocator {
     for (Index x = 0; x < num_slices; x++) {
       if (num_lhs > 0) lhs_blocks[x].resize(num_lhs);
       for (Index m = 0; m < num_lhs; m++) {
-        lhs_blocks[x][m] = reinterpret_cast<LhsScalar*>(mem);
+        lhs_blocks[x][m] = static_cast<LhsScalar*>(static_cast<void*>(mem));
         mem += sz.lhs_size;
       }
       if (num_rhs > 0) rhs_blocks[x].resize(num_rhs);
       for (Index n = 0; n < num_rhs; n++) {
-        rhs_blocks[x][n] = reinterpret_cast<RhsScalar*>(mem);
+        rhs_blocks[x][n] = static_cast<RhsScalar*>(static_cast<void*>(mem));
         mem += sz.rhs_size;
       }
     }
@@ -142,8 +144,8 @@ struct TensorContractionBlockMemAllocator {
                                                               const Index bn) {
     Index align = numext::maxi(EIGEN_MAX_ALIGN_BYTES, 1);
     BlockSizes sz;
-    sz.lhs_size = divup<Index>(bm * bk * sizeof(LhsScalar), align) * align;
-    sz.rhs_size = divup<Index>(bn * bk * sizeof(RhsScalar), align) * align;
+    sz.lhs_size = numext::div_ceil<Index>(bm * bk * sizeof(LhsScalar), align) * align;
+    sz.rhs_size = numext::div_ceil<Index>(bn * bk * sizeof(RhsScalar), align) * align;
     return sz;
   }
 };
@@ -343,11 +345,11 @@ class TensorContractionOp : public TensorBase<TensorContractionOp<Indices, LhsXp
 
   /** \returns the nested expressions */
   EIGEN_DEVICE_FUNC
-  const typename internal::remove_all<typename LhsXprType::Nested>::type&
+  const internal::remove_all_t<typename LhsXprType::Nested>&
   lhsExpression() const { return m_lhs_xpr; }
 
   EIGEN_DEVICE_FUNC
-  const typename internal::remove_all<typename RhsXprType::Nested>::type&
+  const internal::remove_all_t<typename RhsXprType::Nested>&
   rhsExpression() const { return m_rhs_xpr; }
 
   EIGEN_DEVICE_FUNC
@@ -360,10 +362,8 @@ class TensorContractionOp : public TensorBase<TensorContractionOp<Indices, LhsXp
     const OutputKernelType m_output_kernel;
 };
 
-
 template<typename Derived>
-struct TensorContractionEvaluatorBase : internal::no_assignment_operator
-{
+struct TensorContractionEvaluatorBase {
   typedef typename internal::traits<Derived>::Indices Indices;
   typedef typename internal::traits<Derived>::LeftArgType LeftArgType;
   typedef typename internal::traits<Derived>::RightArgType RightArgType;
@@ -371,19 +371,19 @@ struct TensorContractionEvaluatorBase : internal::no_assignment_operator
   typedef typename internal::traits<Derived>::Device Device;
 
   typedef TensorContractionOp<Indices, LeftArgType, RightArgType, OutputKernelType> XprType;
-  typedef typename internal::remove_const<typename XprType::Scalar>::type Scalar;
+  typedef std::remove_const_t<typename XprType::Scalar> Scalar;
   typedef typename XprType::Index Index;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
   typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
   typedef StorageMemory<Scalar, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;
 
+  static constexpr int Layout = TensorEvaluator<LeftArgType, Device>::Layout;
   enum {
     IsAligned         = true,
     PacketAccess      = (PacketType<CoeffReturnType, Device>::size > 1),
     BlockAccess       = false,
     PreferBlockAccess = false,
-    Layout            = TensorEvaluator<LeftArgType, Device>::Layout,
     CoordAccess       = false,  // to be implemented
     RawAccess         = true
   };
@@ -396,20 +396,20 @@ struct TensorContractionEvaluatorBase : internal::no_assignment_operator
   // inputs are RowMajor, we will "cheat" by swapping the LHS and RHS:
   // If we want to compute A * B = C, where A is LHS and B is RHS, the code
   // will pretend B is LHS and A is RHS.
-  typedef typename internal::conditional<
-    static_cast<int>(Layout) == static_cast<int>(ColMajor), LeftArgType, RightArgType>::type EvalLeftArgType;
-  typedef typename internal::conditional<
-    static_cast<int>(Layout) == static_cast<int>(ColMajor), RightArgType, LeftArgType>::type EvalRightArgType;
+  typedef std::conditional_t<
+    static_cast<int>(Layout) == static_cast<int>(ColMajor), LeftArgType, RightArgType> EvalLeftArgType;
+  typedef std::conditional_t<
+    static_cast<int>(Layout) == static_cast<int>(ColMajor), RightArgType, LeftArgType> EvalRightArgType;
 
   typedef TensorEvaluator<EvalLeftArgType, Device> LeftEvaluatorType;
   typedef TensorEvaluator<EvalRightArgType, Device> RightEvaluatorType;
 
-  static const int LDims =
+  static constexpr int LDims =
       internal::array_size<typename TensorEvaluator<EvalLeftArgType, Device>::Dimensions>::value;
-  static const int RDims =
+  static constexpr int RDims =
       internal::array_size<typename TensorEvaluator<EvalRightArgType, Device>::Dimensions>::value;
-  static const int ContractDims = internal::array_size<Indices>::value;
-  static const int NumDims = LDims + RDims - 2 * ContractDims;
+  static constexpr int ContractDims = internal::array_size<Indices>::value;
+  static constexpr int NumDims = LDims + RDims - 2 * ContractDims;
 
   typedef array<Index, ContractDims> contract_t;
   typedef array<Index, LDims - ContractDims> left_nocontract_t;
@@ -733,8 +733,8 @@ struct TensorContractionEvaluatorBase : internal::no_assignment_operator
     const Index rows = m_i_size;
     const Index cols = m_k_size;
 
-    typedef typename internal::remove_const<typename EvalLeftArgType::Scalar>::type LhsScalar;
-    typedef typename internal::remove_const<typename EvalRightArgType::Scalar>::type RhsScalar;
+    typedef std::remove_const_t<typename EvalLeftArgType::Scalar> LhsScalar;
+    typedef std::remove_const_t<typename EvalRightArgType::Scalar> RhsScalar;
     typedef TensorEvaluator<EvalLeftArgType, Device> LeftEvaluator;
     typedef TensorEvaluator<EvalRightArgType, Device> RightEvaluator;
     const Index lhs_packet_size = internal::unpacket_traits<typename LeftEvaluator::PacketReturnType>::size;
@@ -762,7 +762,7 @@ struct TensorContractionEvaluatorBase : internal::no_assignment_operator
     const Index resIncr(1);
 
     // zero out the result buffer (which must be of size at least rows * sizeof(Scalar)
-    m_device.memset(buffer, 0, rows * sizeof(Scalar));
+    m_device.fill(buffer, buffer + rows, Scalar(0));
 
     internal::general_matrix_vector_product<Index,LhsScalar,LhsMapper,ColMajor,false,RhsScalar,RhsMapper,false>::run(
         rows, cols, lhs, rhs,
@@ -810,8 +810,8 @@ struct TensorContractionEvaluatorBase : internal::no_assignment_operator
     const Index n = this->m_j_size;
 
     // define data mappers for Lhs and Rhs
-    typedef typename internal::remove_const<typename EvalLeftArgType::Scalar>::type LhsScalar;
-    typedef typename internal::remove_const<typename EvalRightArgType::Scalar>::type RhsScalar;
+    typedef std::remove_const_t<typename EvalLeftArgType::Scalar> LhsScalar;
+    typedef std::remove_const_t<typename EvalRightArgType::Scalar> RhsScalar;
 
     typedef TensorEvaluator<EvalLeftArgType, Device> LeftEvaluator;
     typedef TensorEvaluator<EvalRightArgType, Device> RightEvaluator;
@@ -869,7 +869,7 @@ struct TensorContractionEvaluatorBase : internal::no_assignment_operator
     // If a contraction kernel does not support beta, explicitly initialize
     // output buffer with zeroes.
     if (!TensorContractionKernel::HasBeta) {
-      this->m_device.memset(buffer, 0, m * n * sizeof(Scalar));
+      this->m_device.fill(buffer, buffer + m * n, Scalar(0));
     }
 
     for(Index i2=0; i2<m; i2+=mc)
@@ -976,35 +976,31 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
   typedef TensorContractionEvaluatorBase<Self> Base;
 
   typedef TensorContractionOp<Indices, LeftArgType, RightArgType, OutputKernelType> XprType;
-  typedef typename internal::remove_const<typename XprType::Scalar>::type Scalar;
+  typedef std::remove_const_t<typename XprType::Scalar> Scalar;
   typedef typename XprType::Index Index;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
   typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
 
-  enum {
-    Layout = TensorEvaluator<LeftArgType, Device>::Layout
-  };
+  static constexpr int Layout = TensorEvaluator<LeftArgType, Device>::Layout;
 
   // Most of the code is assuming that both input tensors are ColMajor. If the
   // inputs are RowMajor, we will "cheat" by swapping the LHS and RHS:
   // If we want to compute A * B = C, where A is LHS and B is RHS, the code
   // will pretend B is LHS and A is RHS.
-  typedef typename internal::conditional<
-    static_cast<int>(Layout) == static_cast<int>(ColMajor), LeftArgType, RightArgType>::type EvalLeftArgType;
-  typedef typename internal::conditional<
-    static_cast<int>(Layout) == static_cast<int>(ColMajor), RightArgType, LeftArgType>::type EvalRightArgType;
+  typedef std::conditional_t<Layout == static_cast<int>(ColMajor), LeftArgType, RightArgType> EvalLeftArgType;
+  typedef std::conditional_t<Layout == static_cast<int>(ColMajor), RightArgType, LeftArgType> EvalRightArgType;
 
-  static const int LDims =
+  static constexpr int LDims =
       internal::array_size<typename TensorEvaluator<EvalLeftArgType, Device>::Dimensions>::value;
-  static const int RDims =
+  static constexpr int RDims =
       internal::array_size<typename TensorEvaluator<EvalRightArgType, Device>::Dimensions>::value;
-  static const int ContractDims = internal::array_size<Indices>::value;
+  static constexpr int ContractDims = internal::array_size<Indices>::value;
 
   typedef array<Index, ContractDims> contract_t;
   typedef array<Index, LDims - ContractDims> left_nocontract_t;
   typedef array<Index, RDims - ContractDims> right_nocontract_t;
 
-  static const int NumDims = LDims + RDims - 2 * ContractDims;
+  static constexpr int NumDims = LDims + RDims - 2 * ContractDims;
 
   // Could we use NumDimensions here?
   typedef DSizes<Index, NumDims> Dimensions;

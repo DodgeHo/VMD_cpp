@@ -17,6 +17,15 @@ static long int nb_transposed_copies;
     VERIFY( (#XPR) && nb_transposed_copies==N ); \
   }
 
+static long int nb_temporaries;
+#define EIGEN_SPARSE_CREATE_TEMPORARY_PLUGIN {nb_temporaries++;}
+#define VERIFY_TEMPORARY_COUNT(XPR,N) {\
+    nb_temporaries = 0; \
+    XPR; \
+    if(nb_temporaries!=N) std::cerr << "nb_temporaries == " << nb_temporaries << "\n"; \
+    VERIFY( (#XPR) && nb_temporaries==N ); \
+  }
+
 #include "sparse.h"
 
 template<typename T>
@@ -53,7 +62,7 @@ template<int OtherStorage, typename SparseMatrixType> void sparse_permutations(c
 //   bool IsRowMajor1 = SparseMatrixType::IsRowMajor;
 //   bool IsRowMajor2 = OtherSparseMatrixType::IsRowMajor;
   
-  double density = (std::max)(8./(rows*cols), 0.01);
+  double density = (std::max)(8./static_cast<double>(rows*cols), 0.01);
   
   SparseMatrixType mat(rows, cols), up(rows,cols), lo(rows,cols);
   OtherSparseMatrixType res;
@@ -79,27 +88,32 @@ template<int OtherStorage, typename SparseMatrixType> void sparse_permutations(c
   VERIFY( is_sorted( ::eval(mat*p) ));
   VERIFY( is_sorted( res = mat*p ));
   VERIFY_TRANSPOSITION_COUNT( ::eval(mat*p), 0);
-  //VERIFY_TRANSPOSITION_COUNT( res = mat*p, IsRowMajor ? 1 : 0 );
+  VERIFY_TEMPORARY_COUNT(     ::eval(mat*p), 1)
   res_d = mat_d*p;
   VERIFY(res.isApprox(res_d) && "mat*p");
 
   VERIFY( is_sorted( ::eval(p*mat) ));
   VERIFY( is_sorted( res = p*mat ));
   VERIFY_TRANSPOSITION_COUNT( ::eval(p*mat), 0);
+  VERIFY_TEMPORARY_COUNT(     ::eval(p*mat), 1);
   res_d = p*mat_d;
   VERIFY(res.isApprox(res_d) && "p*mat");
 
   VERIFY( is_sorted( (mat*p).eval() ));
   VERIFY( is_sorted( res = mat*p.inverse() ));
   VERIFY_TRANSPOSITION_COUNT( ::eval(mat*p.inverse()), 0);
+  VERIFY_TEMPORARY_COUNT(     ::eval(mat*p.inverse()), 1);
   res_d = mat*p.inverse();
   VERIFY(res.isApprox(res_d) && "mat*inv(p)");
 
   VERIFY( is_sorted( (p*mat+p*mat).eval() ));
   VERIFY( is_sorted( res = p.inverse()*mat ));
   VERIFY_TRANSPOSITION_COUNT( ::eval(p.inverse()*mat), 0);
+  VERIFY_TEMPORARY_COUNT(     ::eval(p.inverse()*mat), 1);
   res_d = p.inverse()*mat_d;
   VERIFY(res.isApprox(res_d) && "inv(p)*mat");
+
+  //
 
   VERIFY( is_sorted( (p * mat * p.inverse()).eval() ));
   VERIFY( is_sorted( res = mat.twistedBy(p) ));

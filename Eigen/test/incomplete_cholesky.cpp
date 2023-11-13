@@ -10,7 +10,6 @@
 // #define EIGEN_MAX_ALIGN_BYTES 0
 #include "sparse_solver.h"
 #include <Eigen/IterativeLinearSolvers>
-#include <unsupported/Eigen/IterativeSolvers>
 
 template<typename T, typename I_> void test_incomplete_cholesky_T()
 {

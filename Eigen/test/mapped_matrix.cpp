@@ -7,10 +7,6 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-#ifndef EIGEN_NO_STATIC_ASSERT
-#define EIGEN_NO_STATIC_ASSERT // turn static asserts into runtime asserts in order to check them
-#endif
-
 #include "main.h"
 
 #define EIGEN_TESTMAP_MAX_SIZE 256
@@ -24,7 +20,9 @@ template<typename VectorType> void map_class_vector(const VectorType& m)
   Scalar* array1 = internal::aligned_new<Scalar>(size);
   Scalar* array2 = internal::aligned_new<Scalar>(size);
   Scalar* array3 = new Scalar[size+1];
-  Scalar* array3unaligned = (internal::UIntPtr(array3)%EIGEN_MAX_ALIGN_BYTES) == 0 ? array3+1 : array3;
+  // In case of no alignment, avoid division by zero.
+  constexpr int alignment = (std::max<int>)(EIGEN_MAX_ALIGN_BYTES, 1);
+  Scalar* array3unaligned = (std::uintptr_t(array3)%alignment) == 0 ? array3+1 : array3;
   Scalar  array4[EIGEN_TESTMAP_MAX_SIZE];
 
   Map<VectorType, AlignedMax>(array1, size) = VectorType::Random(size);
@@ -64,16 +62,18 @@ template<typename MatrixType> void map_class_matrix(const MatrixType& m)
   Scalar* array3 = new Scalar[size+1];
   Index sizep1 = size + 1; // <- without this temporary MSVC 2103 generates bad code
   for(Index i = 0; i < sizep1; i++) array3[i] = Scalar(1);
-  Scalar* array3unaligned = (internal::UIntPtr(array3)%EIGEN_MAX_ALIGN_BYTES) == 0 ? array3+1 : array3;
+    // In case of no alignment, avoid division by zero.
+  constexpr int alignment = (std::max<int>)(EIGEN_MAX_ALIGN_BYTES, 1);
+  Scalar* array3unaligned = (std::uintptr_t(array3)%alignment) == 0 ? array3+1 : array3;
   Scalar array4[256];
   if(size<=256)
     for(int i = 0; i < size; i++) array4[i] = Scalar(1);
-  
+
   Map<MatrixType> map1(array1, rows, cols);
   Map<MatrixType, AlignedMax> map2(array2, rows, cols);
   Map<MatrixType> map3(array3unaligned, rows, cols);
   Map<MatrixType> map4(array4, rows, cols);
-  
+
   VERIFY_IS_EQUAL(map1, MatrixType::Ones(rows,cols));
   VERIFY_IS_EQUAL(map2, MatrixType::Ones(rows,cols));
   VERIFY_IS_EQUAL(map3, MatrixType::Ones(rows,cols));
@@ -88,17 +88,17 @@ template<typename MatrixType> void map_class_matrix(const MatrixType& m)
   VERIFY_IS_EQUAL(ma1, ma2);
   VERIFY_IS_EQUAL(ma1, ma3);
   VERIFY_IS_EQUAL(ma1, map3);
-  
+
   VERIFY_IS_APPROX(s1*map1, s1*map2);
   VERIFY_IS_APPROX(s1*ma1, s1*ma2);
   VERIFY_IS_EQUAL(s1*ma1, s1*ma3);
   VERIFY_IS_APPROX(s1*map1, s1*map3);
-  
+
   map2 *= s1;
   map3 *= s1;
   VERIFY_IS_APPROX(s1*map1, map2);
   VERIFY_IS_APPROX(s1*map1, map3);
-  
+
   if(size<=256)
   {
     VERIFY_IS_EQUAL(map4, MatrixType::Ones(rows,cols));
@@ -108,7 +108,7 @@ template<typename MatrixType> void map_class_matrix(const MatrixType& m)
     VERIFY_IS_EQUAL(ma1, map4);
     VERIFY_IS_EQUAL(ma1, ma4);
     VERIFY_IS_APPROX(s1*map1, s1*map4);
-    
+
     map4 *= s1;
     VERIFY_IS_APPROX(s1*map1, map4);
   }
@@ -127,7 +127,9 @@ template<typename VectorType> void map_static_methods(const VectorType& m)
   Scalar* array1 = internal::aligned_new<Scalar>(size);
   Scalar* array2 = internal::aligned_new<Scalar>(size);
   Scalar* array3 = new Scalar[size+1];
-  Scalar* array3unaligned = internal::UIntPtr(array3)%EIGEN_MAX_ALIGN_BYTES == 0 ? array3+1 : array3;
+    // In case of no alignment, avoid division by zero.
+  constexpr int alignment = (std::max<int>)(EIGEN_MAX_ALIGN_BYTES, 1);
+  Scalar* array3unaligned = (std::uintptr_t(array3)%alignment) == 0 ? array3+1 : array3;
 
   VectorType::MapAligned(array1, size) = VectorType::Random(size);
   VectorType::Map(array2, size) = VectorType::Map(array1, size);
@@ -150,32 +152,11 @@ template<typename PlainObjectType> void check_const_correctness(const PlainObjec
   // CMake can help with that.
 
   // verify that map-to-const don't have LvalueBit
-  typedef typename internal::add_const<PlainObjectType>::type ConstPlainObjectType;
+  typedef std::add_const_t<PlainObjectType> ConstPlainObjectType;
   VERIFY( !(internal::traits<Map<ConstPlainObjectType> >::Flags & LvalueBit) );
   VERIFY( !(internal::traits<Map<ConstPlainObjectType, AlignedMax> >::Flags & LvalueBit) );
   VERIFY( !(Map<ConstPlainObjectType>::Flags & LvalueBit) );
   VERIFY( !(Map<ConstPlainObjectType, AlignedMax>::Flags & LvalueBit) );
-}
-
-template<typename Scalar>
-void map_not_aligned_on_scalar()
-{
-  typedef Matrix<Scalar,Dynamic,Dynamic> MatrixType;
-  Index size = 11;
-  Scalar* array1 = internal::aligned_new<Scalar>((size+1)*(size+1)+1);
-  Scalar* array2 = reinterpret_cast<Scalar*>(sizeof(Scalar)/2+std::size_t(array1));
-  Map<MatrixType,0,OuterStride<> > map2(array2, size, size, OuterStride<>(size+1));
-  MatrixType m2 = MatrixType::Random(size,size);
-  map2 = m2;
-  VERIFY_IS_EQUAL(m2, map2);
-  
-  typedef Matrix<Scalar,Dynamic,1> VectorType;
-  Map<VectorType> map3(array2, size);
-  MatrixType v3 = VectorType::Random(size);
-  map3 = v3;
-  VERIFY_IS_EQUAL(v3, map3);
-  
-  internal::aligned_delete(array1, (size+1)*(size+1)+1);
 }
 
 EIGEN_DECLARE_TEST(mapped_matrix)
@@ -202,6 +183,5 @@ EIGEN_DECLARE_TEST(mapped_matrix)
     CALL_SUBTEST_8( map_static_methods(RowVector3d()) );
     CALL_SUBTEST_9( map_static_methods(VectorXcd(8)) );
     CALL_SUBTEST_10( map_static_methods(VectorXf(12)) );
-    CALL_SUBTEST_11( map_not_aligned_on_scalar<double>() );
   }
 }

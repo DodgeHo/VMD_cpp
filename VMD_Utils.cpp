@@ -62,6 +62,10 @@ void VMD
 	vectorcd f_hat_plus(f_hat.size(), 0.0);
 	copy(f_hat.begin() + T / 2, f_hat.end(), f_hat_plus.begin() + T / 2);
 
+	// Calculate Matrix-Column in advance
+	MatrixXcd f_hat_plus_Xcd = vector_to_MatrixXcd_in_col(f_hat_plus);
+	MatrixXcd freqs_Xcd = vector_to_MatrixXcd_in_col(freqs);
+
 	// Matrix keeping track of every iterant // could be discarded for mem
 	Matrix3DXd u_hat_plus(N, MatrixXcd::Zero(K, T));
 
@@ -110,16 +114,17 @@ void VMD
 		sum_uk = u_hat_plus[n - 1].row(K - 1) + sum_uk - u_hat_plus[n - 1].row(0);
 
 		//update spectrum of first mode through Wiener filter of residuals
-		MatrixXcd Dividend_vec = vector_to_MatrixXcd_in_col(f_hat_plus) - sum_uk - (lambda_hat.row(n - 1) / 2.0);
+		MatrixXcd Dividend_vec = f_hat_plus_Xcd - sum_uk - (lambda_hat.row(n - 1) / 2.0);
 		MatrixXcd Divisor_vec = (1 + alpha *
-			((vector_to_MatrixXcd_in_col(freqs).array() - omega_plus(n - 1, k))).array().square());
+			((freqs_Xcd.array() - omega_plus(n - 1, k))).array().square());
 		u_hat_plus[n].row(k) = Dividend_vec.cwiseQuotient(Divisor_vec);
 
 		//update first omega if not held at 0
 		if (!DC) {
-			std::complex<double> Dividend{ 0,0 }, Divisor{ 0, 0 }, Addend{ 0, 0 };
+			std::complex<double> Dividend{ 0,0 }, Divisor{ 0, 0 }, Addend{ 0, 0 }, Addend_sqrt{ 0, 0 };
 			for (int i = 0; i < T - T / 2; i++) {
-				Addend = abs(u_hat_plus[n](k, T / 2 + i)) * abs(u_hat_plus[n](k, T / 2 + i));
+				Addend_sqrt = abs(u_hat_plus[n](k, T / 2 + i));
+				Addend = Addend_sqrt * Addend_sqrt;
 				Divisor += Addend;
 				Dividend += freqs[T / 2 + i] * Addend;
 			}
@@ -128,28 +133,32 @@ void VMD
 		}
 		// Dual ascent
 
+		auto lambda_hat_lastrow_half = lambda_hat.row(n - 1) / 2.0;
 		for (k = 1; k < K; k++) {
 			//accumulator
-			sum_uk = u_hat_plus[n].row(k - 1) + sum_uk - u_hat_plus[n - 1].row(k);
+			sum_uk.noalias() += u_hat_plus[n].row(k - 1) - u_hat_plus[n - 1].row(k);
 
 			//mode spectrum
-			MatrixXcd Dividend_vec = vector_to_MatrixXcd_in_col(f_hat_plus) - sum_uk - (lambda_hat.row(n - 1) / 2.0);
+			MatrixXcd Dividend_vec = f_hat_plus_Xcd;
+			Dividend_vec.noalias() -= sum_uk;         // in-place calculate
+			Dividend_vec.noalias() -= lambda_hat_lastrow_half;  // in-place calculate
 			MatrixXcd Divisor_vec = (1 + alpha *
-				((vector_to_MatrixXcd_in_col(freqs).array() - omega_plus(n - 1, k))).array().square());
+				((freqs_Xcd.array() - omega_plus(n - 1, k))).array().square());
+
 			u_hat_plus[n].row(k) = Dividend_vec.cwiseQuotient(Divisor_vec);
 
 			//center frequencies
-			std::complex<double> Dividend{ 0,0 }, Divisor{ 0, 0 }, Addend{ 0, 0 };
+			std::complex<double> Dividend{ 0,0 }, Divisor{ 0, 0 }, Addend{ 0, 0 }, Addend_sqrt{ 0, 0 };
 			for (int i = 0; i < T - T / 2; i++) {
-				Addend = abs(u_hat_plus[n](k, T / 2 + i)) * abs(u_hat_plus[n](k, T / 2 + i));
+				Addend_sqrt = abs(u_hat_plus[n](k, T / 2 + i));
+				Addend = Addend_sqrt * Addend_sqrt;
 				Divisor += Addend;
 				Dividend += freqs[T / 2 + i] * Addend;
 			}
 			omega_plus(n, k) = Dividend / Divisor;
 		}
 
-		lambda_hat.row(n) = lambda_hat.row(n - 1) + tau *
-			(sum(u_hat_plus, n) - vector_to_MatrixXcd_in_col(f_hat_plus));
+		lambda_hat.row(n) = lambda_hat.row(n - 1) + tau * (sum(u_hat_plus, n) - f_hat_plus_Xcd);
 		n++;
 
 		std::complex<double> acc{ eps, 0 };

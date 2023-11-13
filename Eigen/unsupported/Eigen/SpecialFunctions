@@ -7,8 +7,8 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-#ifndef EIGEN_SPECIALFUNCTIONS_MODULE
-#define EIGEN_SPECIALFUNCTIONS_MODULE
+#ifndef EIGEN_SPECIALFUNCTIONS_MODULE_H
+#define EIGEN_SPECIALFUNCTIONS_MODULE_H
 
 #include <math.h>
 
@@ -60,6 +60,7 @@ namespace Eigen {
 
 }
 
+// IWYU pragma: begin_exports
 #include "src/SpecialFunctions/BesselFunctionsImpl.h"
 #include "src/SpecialFunctions/BesselFunctionsBFloat16.h"
 #include "src/SpecialFunctions/BesselFunctionsHalf.h"
@@ -92,6 +93,7 @@ namespace Eigen {
 #if defined EIGEN_VECTORIZE_GPU
   #include "src/SpecialFunctions/arch/GPU/SpecialFunctions.h"
 #endif
+// IWYU pragma: end_exports
 
 namespace Eigen {
 //@}
@@ -100,4 +102,4 @@ namespace Eigen {
 
 #include "../../Eigen/src/Core/util/ReenableStupidWarnings.h"
 
-#endif // EIGEN_SPECIALFUNCTIONS_MODULE
+#endif // EIGEN_SPECIALFUNCTIONS_MODULE_H

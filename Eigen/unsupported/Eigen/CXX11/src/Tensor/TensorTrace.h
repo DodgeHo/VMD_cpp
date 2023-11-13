@@ -11,6 +11,9 @@
 #ifndef EIGEN_CXX11_TENSOR_TENSOR_TRACE_H
 #define EIGEN_CXX11_TENSOR_TENSOR_TRACE_H
 
+// IWYU pragma: private
+#include "./InternalHeaderCheck.h"
+
 namespace Eigen {
 
 /** \class TensorTrace
@@ -30,9 +33,9 @@ struct traits<TensorTraceOp<Dims, XprType> > : public traits<XprType>
   typedef typename XprTraits::StorageKind StorageKind;
   typedef typename XprTraits::Index Index;
   typedef typename XprType::Nested Nested;
-  typedef typename remove_reference<Nested>::type _Nested;
-  static const int NumDimensions = XprTraits::NumDimensions - array_size<Dims>::value;
-  static const int Layout = XprTraits::Layout;
+  typedef std::remove_reference_t<Nested> Nested_;
+  static constexpr int NumDimensions = XprTraits::NumDimensions - array_size<Dims>::value;
+  static constexpr int Layout = XprTraits::Layout;
 };
 
 template<typename Dims, typename XprType>
@@ -69,7 +72,7 @@ class TensorTraceOp : public TensorBase<TensorTraceOp<Dims, XprType> >
     const Dims& dims() const { return m_dims; }
 
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-    const typename internal::remove_all<typename XprType::Nested>::type& expression() const { return m_xpr; }
+    const internal::remove_all_t<typename XprType::Nested>& expression() const { return m_xpr; }
 
   protected:
     typename XprType::Nested m_xpr;
@@ -82,24 +85,24 @@ template<typename Dims, typename ArgType, typename Device>
 struct TensorEvaluator<const TensorTraceOp<Dims, ArgType>, Device>
 {
   typedef TensorTraceOp<Dims, ArgType> XprType;
-  static const int NumInputDims = internal::array_size<typename TensorEvaluator<ArgType, Device>::Dimensions>::value;
-  static const int NumReducedDims = internal::array_size<Dims>::value;
-  static const int NumOutputDims = NumInputDims - NumReducedDims;
+  static constexpr int NumInputDims = internal::array_size<typename TensorEvaluator<ArgType, Device>::Dimensions>::value;
+  static constexpr int NumReducedDims = internal::array_size<Dims>::value;
+  static constexpr int NumOutputDims = NumInputDims - NumReducedDims;
   typedef typename XprType::Index Index;
   typedef DSizes<Index, NumOutputDims> Dimensions;
   typedef typename XprType::Scalar Scalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
   typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
-  static const int PacketSize = internal::unpacket_traits<PacketReturnType>::size;
+  static constexpr int PacketSize = internal::unpacket_traits<PacketReturnType>::size;
   typedef StorageMemory<CoeffReturnType, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;
 
+  static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
     IsAligned = false,
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
     BlockAccess = false,
     PreferBlockAccess = TensorEvaluator<ArgType, Device>::PreferBlockAccess,
-    Layout = TensorEvaluator<ArgType, Device>::Layout,
     CoordAccess = false,
     RawAccess = false
   };
@@ -134,6 +137,7 @@ struct TensorEvaluator<const TensorTraceOp<Dims, ArgType>, Device>
       }
     }
 
+    EIGEN_ONLY_USED_FOR_DEBUG(num_distinct_reduce_dims);
     eigen_assert(num_distinct_reduce_dims == NumReducedDims);
 
     // Compute the dimensions of the result.
@@ -243,24 +247,15 @@ struct TensorEvaluator<const TensorTraceOp<Dims, ArgType>, Device>
 
   template<int LoadMode>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketReturnType packet(Index index) const {
-
-    EIGEN_STATIC_ASSERT((PacketSize > 1), YOU_MADE_A_PROGRAMMING_MISTAKE);
     eigen_assert(index + PacketSize - 1 < dimensions().TotalSize());
 
-    EIGEN_ALIGN_MAX typename internal::remove_const<CoeffReturnType>::type values[PacketSize];
+    EIGEN_ALIGN_MAX std::remove_const_t<CoeffReturnType> values[PacketSize];
     for (int i = 0; i < PacketSize; ++i) {
         values[i] = coeff(index + i);
     }
     PacketReturnType result = internal::ploadt<PacketReturnType, LoadMode>(values);
     return result;
   }
-
-#ifdef EIGEN_USE_SYCL
-  // binding placeholder accessors to a command group handler for SYCL
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void bind(cl::sycl::handler &cgh) const {
-    m_impl.bind(cgh);
-  }
-#endif
 
  protected:
   // Given the output index, finds the first index in the input tensor used to compute the trace

@@ -17,7 +17,6 @@
 
 #include "sparse_solver.h"
 #include <Eigen/SparseLU>
-#include <unsupported/Eigen/SparseExtra>
 
 template<typename T> void test_sparselu_T()
 {

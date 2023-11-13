@@ -37,14 +37,8 @@ static void test_sycl_random_uniform(const Eigen::SyclDevice& sycl_device)
 
   gpu_out.device(sycl_device)=gpu_out.random();
   sycl_device.memcpyDeviceToHost(out.data(), d_out,out_bytes);
-  for(IndexType i=1; i<sizeDim0; i++)
-    for(IndexType j=1; j<sizeDim1; j++)
-    {
-      VERIFY_IS_NOT_EQUAL(out(i,j), out(i-1,j));
-      VERIFY_IS_NOT_EQUAL(out(i,j), out(i,j-1));
-      VERIFY_IS_NOT_EQUAL(out(i,j), out(i-1,j-1));    }
 
-  // For now we just check thes code doesn't crash.
+  // For now we just check the code doesn't crash.
   // TODO: come up with a valid test of randomness
   sycl_device.deallocate(d_out);
 }
@@ -66,16 +60,8 @@ void test_sycl_random_normal(const Eigen::SyclDevice& sycl_device)
   Eigen::internal::NormalRandomGenerator<DataType> gen(true);
   gpu_out.device(sycl_device)=gpu_out.random(gen);
   sycl_device.memcpyDeviceToHost(out.data(), d_out,out_bytes);
-  for(IndexType i=1; i<sizeDim0; i++)
-    for(IndexType j=1; j<sizeDim1; j++)
-    {
-      VERIFY_IS_NOT_EQUAL(out(i,j), out(i-1,j));
-      VERIFY_IS_NOT_EQUAL(out(i,j), out(i,j-1));
-      VERIFY_IS_NOT_EQUAL(out(i,j), out(i-1,j-1));
 
-    }
-
-  // For now we just check thes code doesn't crash.
+  // For now we just check the code doesn't crash.
   // TODO: come up with a valid test of randomness
   sycl_device.deallocate(d_out);
 }
@@ -92,6 +78,7 @@ template<typename DataType, typename dev_Selector> void sycl_random_test_per_dev
 EIGEN_DECLARE_TEST(cxx11_tensor_random_sycl)
 {
   for (const auto& device :Eigen::get_sycl_supported_devices()) {
+    CALL_SUBTEST(sycl_random_test_per_device<half>(device));
     CALL_SUBTEST(sycl_random_test_per_device<float>(device));
 #ifdef EIGEN_SYCL_DOUBLE_SUPPORT
     CALL_SUBTEST(sycl_random_test_per_device<double>(device));

@@ -13,6 +13,9 @@
 #include "StemFunction.h"
 
 
+// IWYU pragma: private
+#include "./InternalHeaderCheck.h"
+
 namespace Eigen { 
 
 namespace internal {
@@ -494,7 +497,7 @@ template<typename Derived> class MatrixFunctionReturnValue
     inline void evalTo(ResultType& result) const
     {
       typedef typename internal::nested_eval<Derived, 10>::type NestedEvalType;
-      typedef typename internal::remove_all<NestedEvalType>::type NestedEvalTypeClean;
+      typedef internal::remove_all_t<NestedEvalType> NestedEvalTypeClean;
       typedef internal::traits<NestedEvalTypeClean> Traits;
       typedef std::complex<typename NumTraits<Scalar>::Real> ComplexScalar;
       typedef Matrix<ComplexScalar, Dynamic, Dynamic, 0, Traits::RowsAtCompileTime, Traits::ColsAtCompileTime> DynMatrixType;

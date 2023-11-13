@@ -26,12 +26,14 @@ EIGEN_DECLARE_TEST(nestbyvalue)
   for(int i = 0; i < g_repeat; i++) {
     Index rows = internal::random<Index>(1,EIGEN_TEST_MAX_SIZE);
     Index cols = internal::random<Index>(1,EIGEN_TEST_MAX_SIZE);
-    MatrixXd a = MatrixXd(rows,cols);
+    MatrixXd a = MatrixXd::Random(rows,cols);
     nb_temporaries = 0;
     XprType x = get_xpr_with_temps(a);
     VERIFY_IS_EQUAL(nb_temporaries,6);
     MatrixXd b = x;
     VERIFY_IS_EQUAL(nb_temporaries,6+1);
     VERIFY_IS_APPROX(b, a.rowwise().reverse().eval() + (a+a).eval());
+    // Block expressions work with dense NestByValue.
+    VERIFY_IS_APPROX(b, a.nestByValue().rowwise().reverse().eval() + (a.nestByValue()+a.nestByValue()).eval());
   }
 }

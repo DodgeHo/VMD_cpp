@@ -7,7 +7,7 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-#ifdef EIGEN_TEST_PART_100
+#if defined(EIGEN_TEST_PART_100) || defined(EIGEN_TEST_PART_ALL)
 #  define EIGEN_NO_DEPRECATED_WARNING
 #endif
 
@@ -55,6 +55,7 @@ template<typename MatrixType> void triangular_square(const MatrixType& m)
              r1(rows, cols),
              r2(rows, cols);
   VectorType v2 = VectorType::Random(rows);
+  VectorType v3 = VectorType::Zero(rows);
 
   MatrixType m1up = m1.template triangularView<Upper>();
   MatrixType m2up = m2.template triangularView<Upper>();
@@ -96,23 +97,31 @@ template<typename MatrixType> void triangular_square(const MatrixType& m)
   Transpose<MatrixType> trm4(m4);
   // test back and forward substitution with a vector as the rhs
   m3 = m1.template triangularView<Upper>();
-  VERIFY(v2.isApprox(m3.adjoint() * (m1.adjoint().template triangularView<Lower>().solve(v2)), largerEps));
+  v3 = m3.adjoint() * (m1.adjoint().template triangularView<Lower>().solve(v2));
+  VERIFY(v2.isApprox(v3, largerEps));
   m3 = m1.template triangularView<Lower>();
-  VERIFY(v2.isApprox(m3.transpose() * (m1.transpose().template triangularView<Upper>().solve(v2)), largerEps));
+  v3 = m3.transpose() * (m1.transpose().template triangularView<Upper>().solve(v2));
+  VERIFY(v2.isApprox(v3, largerEps));
   m3 = m1.template triangularView<Upper>();
-  VERIFY(v2.isApprox(m3 * (m1.template triangularView<Upper>().solve(v2)), largerEps));
+  v3 = m3 * (m1.template triangularView<Upper>().solve(v2));
+  VERIFY(v2.isApprox(v3, largerEps));
   m3 = m1.template triangularView<Lower>();
-  VERIFY(v2.isApprox(m3.conjugate() * (m1.conjugate().template triangularView<Lower>().solve(v2)), largerEps));
+  v3 = m3.conjugate() * (m1.conjugate().template triangularView<Lower>().solve(v2));
+  VERIFY(v2.isApprox(v3, largerEps));
 
   // test back and forward substitution with a matrix as the rhs
   m3 = m1.template triangularView<Upper>();
-  VERIFY(m2.isApprox(m3.adjoint() * (m1.adjoint().template triangularView<Lower>().solve(m2)), largerEps));
+  m4 = m3.adjoint() * (m1.adjoint().template triangularView<Lower>().solve(m2));
+  VERIFY(m2.isApprox(m4, largerEps));
   m3 = m1.template triangularView<Lower>();
-  VERIFY(m2.isApprox(m3.transpose() * (m1.transpose().template triangularView<Upper>().solve(m2)), largerEps));
+  m4 = m3.transpose() * (m1.transpose().template triangularView<Upper>().solve(m2));
+  VERIFY(m2.isApprox(m4, largerEps));
   m3 = m1.template triangularView<Upper>();
-  VERIFY(m2.isApprox(m3 * (m1.template triangularView<Upper>().solve(m2)), largerEps));
+  m4 = m3 * (m1.template triangularView<Upper>().solve(m2));
+  VERIFY(m2.isApprox(m4, largerEps));
   m3 = m1.template triangularView<Lower>();
-  VERIFY(m2.isApprox(m3.conjugate() * (m1.conjugate().template triangularView<Lower>().solve(m2)), largerEps));
+  m4 = m3.conjugate() * (m1.conjugate().template triangularView<Lower>().solve(m2));
+  VERIFY(m2.isApprox(m4, largerEps));
 
   // check M * inv(L) using in place API
   m4 = m3;
@@ -139,7 +148,6 @@ template<typename MatrixType> void triangular_square(const MatrixType& m)
   m3.setZero();
   m3.template triangularView<Upper>().setOnes();
   VERIFY_IS_APPROX(m2,m3);
-  VERIFY_RAISES_STATIC_ASSERT(m1.template triangularView<Eigen::Lower>().swap(m2.template triangularView<Eigen::Upper>()));
 
   m1.setRandom();
   m3 = m1.template triangularView<Upper>();

@@ -18,26 +18,36 @@
 #define EIGEN_USE_SYCL
 
 #include "main.h"
+#include "OffByOneScalar.h"
 #include <unsupported/Eigen/CXX11/Tensor>
 #include <stdint.h>
 #include <iostream>
 
 template <typename DataType, int DataLayout, typename IndexType>
 void test_device_memory(const Eigen::SyclDevice &sycl_device) {
-  std::cout << "Running on : "
-            << sycl_device.sycl_queue().get_device(). template get_info<cl::sycl::info::device::name>()
-            <<std::endl;
   IndexType sizeDim1 = 100;
   array<IndexType, 1> tensorRange = {{sizeDim1}};
   Tensor<DataType, 1, DataLayout,IndexType> in(tensorRange);
   Tensor<DataType, 1, DataLayout,IndexType> in1(tensorRange);
-  memset(in1.data(), 1, in1.size() * sizeof(DataType));
   DataType* gpu_in_data  = static_cast<DataType*>(sycl_device.allocate(in.size()*sizeof(DataType)));
+
+  // memset
+  memset(in1.data(), 1, in1.size() * sizeof(DataType));
   sycl_device.memset(gpu_in_data, 1, in.size()*sizeof(DataType));
   sycl_device.memcpyDeviceToHost(in.data(), gpu_in_data, in.size()*sizeof(DataType));
   for (IndexType i=0; i<in.size(); i++) {
     VERIFY_IS_EQUAL(in(i), in1(i));
   }
+
+  // fill
+  DataType value = DataType(7);
+  std::fill_n(in1.data(), in1.size(), value);
+  sycl_device.fill(gpu_in_data, gpu_in_data + in.size(), value);
+  sycl_device.memcpyDeviceToHost(in.data(), gpu_in_data, in.size()*sizeof(DataType));
+  for (IndexType i=0; i<in.size(); i++) {
+    VERIFY_IS_EQUAL(in(i), in1(i));
+  }
+
   sycl_device.deallocate(gpu_in_data);
 }
 
@@ -72,6 +82,8 @@ template<typename DataType> void sycl_device_test_per_device(const cl::sycl::dev
 
 EIGEN_DECLARE_TEST(cxx11_tensor_device_sycl) {
   for (const auto& device :Eigen::get_sycl_supported_devices()) {
+    CALL_SUBTEST(sycl_device_test_per_device<half>(device));
     CALL_SUBTEST(sycl_device_test_per_device<float>(device));
+    CALL_SUBTEST(sycl_device_test_per_device<OffByOneScalar<int>>(device));
   }
 }

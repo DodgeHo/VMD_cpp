@@ -73,8 +73,39 @@ template<typename Scalar> void orthomethods_3()
   // check mixed product
   typedef Matrix<RealScalar, 3, 1> RealVector3;
   RealVector3 rv1 = RealVector3::Random();
-  VERIFY_IS_APPROX(v1.cross(rv1.template cast<Scalar>()), v1.cross(rv1));
-  VERIFY_IS_APPROX(rv1.template cast<Scalar>().cross(v1), rv1.cross(v1));
+  v2 = rv1.template cast<Scalar>();
+  VERIFY_IS_APPROX(v1.cross(v2), v1.cross(rv1));
+  VERIFY_IS_APPROX(v2.cross(v1), rv1.cross(v1));
+}
+
+template<typename Scalar> void orthomethods_2()
+{
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  typedef Matrix<Scalar,2,1> Vector2;
+  typedef Matrix<Scalar,3,1> Vector3;
+
+  Vector3 v30 = Vector3::Random(),
+          v31 = Vector3::Random();
+  Vector2 v20 = v30.template head<2>();
+  Vector2 v21 = v31.template head<2>();
+
+  VERIFY_IS_MUCH_SMALLER_THAN(v20.cross(v20), Scalar(1));
+  VERIFY_IS_MUCH_SMALLER_THAN(v21.cross(v21), Scalar(1));
+  VERIFY_IS_APPROX(v20.cross(v21), v30.cross(v31).z());
+  
+  Vector2 v20Rot90(numext::conj(-v20.y()), numext::conj(v20.x()));
+  VERIFY_IS_APPROX(v20.cross( v20Rot90),  v20.squaredNorm());
+  VERIFY_IS_APPROX(v20.cross(-v20Rot90), -v20.squaredNorm());
+  Vector2 v21Rot90(numext::conj(-v21.y()), numext::conj(v21.x()));
+  VERIFY_IS_APPROX(v21.cross( v21Rot90),  v21.squaredNorm());
+  VERIFY_IS_APPROX(v21.cross(-v21Rot90), -v21.squaredNorm());
+
+  // check mixed product
+  typedef Matrix<RealScalar, 2, 1> RealVector2;
+  RealVector2 rv21 = RealVector2::Random();
+  v21 = rv21.template cast<Scalar>();
+  VERIFY_IS_APPROX(v20.cross(v21), v20.cross(rv21));
+  VERIFY_IS_APPROX(v21.cross(v20), rv21.cross(v20));
 }
 
 template<typename Scalar, int Size> void orthomethods(int size=Size)
@@ -118,6 +149,9 @@ template<typename Scalar, int Size> void orthomethods(int size=Size)
 EIGEN_DECLARE_TEST(geo_orthomethods)
 {
   for(int i = 0; i < g_repeat; i++) {
+    CALL_SUBTEST_1( orthomethods_2<float>() );
+    CALL_SUBTEST_2( orthomethods_2<double>() );
+    CALL_SUBTEST_4( orthomethods_2<std::complex<double> >() );
     CALL_SUBTEST_1( orthomethods_3<float>() );
     CALL_SUBTEST_2( orthomethods_3<double>() );
     CALL_SUBTEST_4( orthomethods_3<std::complex<double> >() );

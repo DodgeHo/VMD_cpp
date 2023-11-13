@@ -5,15 +5,25 @@ using namespace Eigen;
 using namespace std;
 /*
 <VMD_CPP: C++ implementation of Variational Mode Decomposition using Eigen.>
-Copyright (C) <2019>  <Lang He: asdsay@gmail.com>
+Copyright (C) <2019>  <Lang HE: asdsay@gmail.com>
 Mozilla Public License v. 2.0.
 */
+
+void printMatrix(const MatrixXd& u) {
+	std::ostringstream out; // use ostringstream to accumulate output
+	for (int i = 0; i < u.rows(); i++) {
+		for (int j = 0; j < u.cols(); j++)
+			out << u(i, j) << ' ';
+		out << "\n\n";
+	}
+	std::cout << out.str(); // output once
+}
 
 int main() {
 
 	// create a signal to simulation the procedure.
 	double f_1 = 2.0, f_2 = 24.0, f_3 = 288.0;
-	int T = 100;
+	int T = 1200;
 	vectord t(T), v_1(T), v_2(T), v_3(T),signal(T);
 	for (int i = 0; i < T; i++) {
 		t[i] = double(i + 1) / T;
@@ -59,11 +69,7 @@ int main() {
 	
 	// output example 
 	cout << "Decomposition results" << endl;
-	for (int i = 0; i < u.rows(); i++) {
-		for (int j = 0; j < u.cols(); j++)
-			cout << u(i, j) << ' ';
-		cout << endl << endl;
-	}
+	printMatrix(u);
 	string name = "test_result_1.csv";
 	ofstream file1(name.c_str());
 	file1 << u.format(CSVFormat);

@@ -24,10 +24,10 @@ template<typename MatrixType> void array_for_matrix(const MatrixType& m)
 
   ColVectorType cv1 = ColVectorType::Random(rows);
   RowVectorType rv1 = RowVectorType::Random(cols);
-  
+
   Scalar  s1 = internal::random<Scalar>(),
           s2 = internal::random<Scalar>();
-          
+
   // scalar addition
   VERIFY_IS_APPROX(m1.array() + s1, s1 + m1.array());
   VERIFY_IS_APPROX((m1.array() + s1).matrix(), MatrixType::Constant(rows,cols,s1) + m1);
@@ -55,18 +55,18 @@ template<typename MatrixType> void array_for_matrix(const MatrixType& m)
   VERIFY_IS_APPROX(m3.rowwise() += rv1, m1.rowwise() + rv1);
   m3 = m1;
   VERIFY_IS_APPROX(m3.rowwise() -= rv1, m1.rowwise() - rv1);
-  
-  // empty objects
-  VERIFY_IS_APPROX((m1.template block<0,Dynamic>(0,0,0,cols).colwise().sum()), RowVectorType::Zero(cols));
-  VERIFY_IS_APPROX((m1.template block<Dynamic,0>(0,0,rows,0).rowwise().sum()), ColVectorType::Zero(rows));
-  VERIFY_IS_APPROX((m1.template block<0,Dynamic>(0,0,0,cols).colwise().prod()), RowVectorType::Ones(cols));
-  VERIFY_IS_APPROX((m1.template block<Dynamic,0>(0,0,rows,0).rowwise().prod()), ColVectorType::Ones(rows));
 
-  VERIFY_IS_APPROX(m1.block(0,0,0,cols).colwise().sum(), RowVectorType::Zero(cols));
-  VERIFY_IS_APPROX(m1.block(0,0,rows,0).rowwise().sum(), ColVectorType::Zero(rows));
-  VERIFY_IS_APPROX(m1.block(0,0,0,cols).colwise().prod(), RowVectorType::Ones(cols));
-  VERIFY_IS_APPROX(m1.block(0,0,rows,0).rowwise().prod(), ColVectorType::Ones(rows));
-  
+  // empty objects
+  VERIFY_IS_EQUAL((m1.template block<0,Dynamic>(0,0,0,cols).colwise().sum()), RowVectorType::Zero(cols));
+  VERIFY_IS_EQUAL((m1.template block<Dynamic,0>(0,0,rows,0).rowwise().sum()), ColVectorType::Zero(rows));
+  VERIFY_IS_EQUAL((m1.template block<0,Dynamic>(0,0,0,cols).colwise().prod()), RowVectorType::Ones(cols));
+  VERIFY_IS_EQUAL((m1.template block<Dynamic,0>(0,0,rows,0).rowwise().prod()), ColVectorType::Ones(rows));
+
+  VERIFY_IS_EQUAL(m1.block(0,0,0,cols).colwise().sum(), RowVectorType::Zero(cols));
+  VERIFY_IS_EQUAL(m1.block(0,0,rows,0).rowwise().sum(), ColVectorType::Zero(rows));
+  VERIFY_IS_EQUAL(m1.block(0,0,0,cols).colwise().prod(), RowVectorType::Ones(cols));
+  VERIFY_IS_EQUAL(m1.block(0,0,rows,0).rowwise().prod(), ColVectorType::Ones(rows));
+
   // verify the const accessors exist
   const Scalar& ref_m1 = m.matrix().array().coeffRef(0);
   const Scalar& ref_m2 = m.matrix().array().coeffRef(0,0);
@@ -211,6 +211,40 @@ template<typename MatrixType> void cwise_min_max(const MatrixType& m)
   VERIFY_IS_APPROX(MatrixType::Constant(rows,cols, maxM1).array(), (m1.array().max)( maxM1));
   VERIFY_IS_APPROX(m1.array(), (m1.array().max)( minM1));
 
+  // Test NaN propagation for min/max.
+  if (!NumTraits<Scalar>::IsInteger) {
+    m1(0,0) = NumTraits<Scalar>::quiet_NaN();
+    // Elementwise.
+    VERIFY((numext::isnan)(m1.template cwiseMax<PropagateNaN>(MatrixType::Constant(rows,cols, Scalar(1)))(0,0)));
+    VERIFY((numext::isnan)(m1.template cwiseMin<PropagateNaN>(MatrixType::Constant(rows,cols, Scalar(1)))(0,0)));
+    VERIFY(!(numext::isnan)(m1.template cwiseMax<PropagateNumbers>(MatrixType::Constant(rows,cols, Scalar(1)))(0,0)));
+    VERIFY(!(numext::isnan)(m1.template cwiseMin<PropagateNumbers>(MatrixType::Constant(rows,cols, Scalar(1)))(0,0)));
+    VERIFY((numext::isnan)(m1.template cwiseMax<PropagateNaN>(Scalar(1))(0,0)));
+    VERIFY((numext::isnan)(m1.template cwiseMin<PropagateNaN>(Scalar(1))(0,0)));
+    VERIFY(!(numext::isnan)(m1.template cwiseMax<PropagateNumbers>(Scalar(1))(0,0)));
+    VERIFY(!(numext::isnan)(m1.template cwiseMin<PropagateNumbers>(Scalar(1))(0,0)));
+
+
+    VERIFY((numext::isnan)(m1.array().template max<PropagateNaN>(MatrixType::Constant(rows,cols, Scalar(1)).array())(0,0)));
+    VERIFY((numext::isnan)(m1.array().template min<PropagateNaN>(MatrixType::Constant(rows,cols, Scalar(1)).array())(0,0)));
+    VERIFY(!(numext::isnan)(m1.array().template max<PropagateNumbers>(MatrixType::Constant(rows,cols, Scalar(1)).array())(0,0)));
+    VERIFY(!(numext::isnan)(m1.array().template min<PropagateNumbers>(MatrixType::Constant(rows,cols, Scalar(1)).array())(0,0)));
+    VERIFY((numext::isnan)(m1.array().template max<PropagateNaN>(Scalar(1))(0,0)));
+    VERIFY((numext::isnan)(m1.array().template min<PropagateNaN>(Scalar(1))(0,0)));
+    VERIFY(!(numext::isnan)(m1.array().template max<PropagateNumbers>(Scalar(1))(0,0)));
+    VERIFY(!(numext::isnan)(m1.array().template min<PropagateNumbers>(Scalar(1))(0,0)));
+
+    // Reductions.
+    VERIFY((numext::isnan)(m1.template maxCoeff<PropagateNaN>()));
+    VERIFY((numext::isnan)(m1.template minCoeff<PropagateNaN>()));
+    if (m1.size() > 1) {
+      VERIFY(!(numext::isnan)(m1.template maxCoeff<PropagateNumbers>()));
+      VERIFY(!(numext::isnan)(m1.template minCoeff<PropagateNumbers>()));
+    } else {
+      VERIFY((numext::isnan)(m1.template maxCoeff<PropagateNumbers>()));
+      VERIFY((numext::isnan)(m1.template minCoeff<PropagateNumbers>()));
+    }
+  }
 }
 
 template<typename MatrixTraits> void resize(const MatrixTraits& t)

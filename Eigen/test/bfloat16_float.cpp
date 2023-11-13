@@ -11,8 +11,6 @@
 
 #include "main.h"
 
-#include <Eigen/src/Core/arch/Default/BFloat16.h>
-
 #define VERIFY_BFLOAT16_BITS_EQUAL(h, bits) \
   VERIFY_IS_EQUAL((numext::bit_cast<numext::uint16_t>(h)), (static_cast<numext::uint16_t>(bits)))
 
@@ -209,8 +207,8 @@ void test_numtraits()
 
 void test_arithmetic()
 {
-  VERIFY_IS_EQUAL(static_cast<float>(bfloat16(2) + bfloat16(2)), 4);
-  VERIFY_IS_EQUAL(static_cast<float>(bfloat16(2) + bfloat16(-2)), 0);
+  VERIFY_IS_EQUAL(static_cast<float>(bfloat16(2) + bfloat16(2)), 4.f);
+  VERIFY_IS_EQUAL(static_cast<float>(bfloat16(2) + bfloat16(-2)), 0.f);
   VERIFY_IS_APPROX(static_cast<float>(bfloat16(0.33333f) + bfloat16(0.66667f)), 1.0f);
   VERIFY_IS_EQUAL(static_cast<float>(bfloat16(2.0f) * bfloat16(-5.5f)), -11.0f);
   VERIFY_IS_APPROX(static_cast<float>(bfloat16(1.0f) / bfloat16(3.0f)), 0.3339f);

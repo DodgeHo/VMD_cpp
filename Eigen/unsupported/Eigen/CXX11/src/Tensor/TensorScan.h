@@ -10,6 +10,9 @@
 #ifndef EIGEN_CXX11_TENSOR_TENSOR_SCAN_H
 #define EIGEN_CXX11_TENSOR_TENSOR_SCAN_H
 
+// IWYU pragma: private
+#include "./InternalHeaderCheck.h"
+
 namespace Eigen {
 
 namespace internal {
@@ -21,9 +24,9 @@ struct traits<TensorScanOp<Op, XprType> >
   typedef traits<XprType> XprTraits;
   typedef typename XprTraits::StorageKind StorageKind;
   typedef typename XprType::Nested Nested;
-  typedef typename remove_reference<Nested>::type _Nested;
-  static const int NumDimensions = XprTraits::NumDimensions;
-  static const int Layout = XprTraits::Layout;
+  typedef std::remove_reference_t<Nested> Nested_;
+  static constexpr int NumDimensions = XprTraits::NumDimensions;
+  static constexpr int Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
 };
 
@@ -189,7 +192,7 @@ template <typename Self, typename Reducer, typename Device,
               (TensorEvaluator<typename Self::ChildTypeNoConst, Device>::PacketAccess &&
                internal::reducer_traits<Reducer, Device>::PacketAccess)>
 struct ScanLauncher {
-  void operator()(Self& self, typename Self::CoeffReturnType* data) {
+  void operator()(Self& self, typename Self::CoeffReturnType* data) const {
     Index total_size = internal::array_prod(self.dimensions());
 
     // We fix the index along the scan axis to 0 and perform a
@@ -212,7 +215,7 @@ EIGEN_STRONG_INLINE Index AdjustBlockSize(Index item_size, Index block_size) {
   EIGEN_CONSTEXPR Index kBlockAlignment = 128;
   const Index items_per_cacheline =
       numext::maxi<Index>(1, kBlockAlignment / item_size);
-  return items_per_cacheline * divup(block_size, items_per_cacheline);
+  return items_per_cacheline * numext::div_ceil(block_size, items_per_cacheline);
 }
 
 template <typename Self>
@@ -379,21 +382,21 @@ struct TensorEvaluator<const TensorScanOp<Op, ArgType>, Device> {
   typedef typename XprType::Index Index;
   typedef const ArgType ChildTypeNoConst;
   typedef const ArgType ChildType;
-  static const int NumDims = internal::array_size<typename TensorEvaluator<ArgType, Device>::Dimensions>::value;
+  static constexpr int NumDims = internal::array_size<typename TensorEvaluator<ArgType, Device>::Dimensions>::value;
   typedef DSizes<Index, NumDims> Dimensions;
-  typedef typename internal::remove_const<typename XprType::Scalar>::type Scalar;
+  typedef std::remove_const_t<typename XprType::Scalar> Scalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
   typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
   typedef TensorEvaluator<const TensorScanOp<Op, ArgType>, Device> Self;
   typedef StorageMemory<Scalar, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;
 
+  static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
     IsAligned = false,
     PacketAccess = (PacketType<CoeffReturnType, Device>::size > 1),
     BlockAccess = false,
     PreferBlockAccess = false,
-    Layout = TensorEvaluator<ArgType, Device>::Layout,
     CoordAccess = false,
     RawAccess = true
   };
@@ -505,13 +508,6 @@ struct TensorEvaluator<const TensorScanOp<Op, ArgType>, Device> {
     m_impl.cleanup();
   }
 
-#ifdef EIGEN_USE_SYCL
- // binding placeholder accessors to a command group handler for SYCL
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void bind(cl::sycl::handler &cgh) const {
-    m_impl.bind(cgh);
-    m_output.bind(cgh);
-  }
-#endif
 protected:
   TensorEvaluator<ArgType, Device> m_impl;
   const Device EIGEN_DEVICE_REF m_device;

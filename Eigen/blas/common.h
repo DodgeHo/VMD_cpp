@@ -27,7 +27,7 @@
 #error the token SCALAR must be defined to compile this file
 #endif
 
-#include "../Eigen/src/misc/blas.h"
+#include "blas.h"
 
 #define NOTR    0
 #define TR      1
@@ -149,7 +149,7 @@ T* get_compact_vector(T* x, int n, int incx)
   if(incx==1)
     return x;
 
-  typename Eigen::internal::remove_const<T>::type* ret = new Scalar[n];
+  std::remove_const_t<T>* ret = new Scalar[n];
   if(incx<0) make_vector(ret,n) = make_vector(x,n,-incx).reverse();
   else       make_vector(ret,n) = make_vector(x,n, incx);
   return ret;

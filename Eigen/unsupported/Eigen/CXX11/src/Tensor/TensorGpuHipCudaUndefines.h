@@ -26,6 +26,7 @@
 #undef gpuMalloc
 #undef gpuFree
 #undef gpuMemsetAsync
+#undef gpuMemset2DAsync
 #undef gpuMemcpyAsync
 #undef gpuMemcpyDeviceToDevice
 #undef gpuMemcpyDeviceToHost

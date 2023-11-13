@@ -41,7 +41,7 @@ EIGEN_DECLARE_TEST(first_aligned)
   test_first_aligned_helper(array_double+1, 50);
   test_first_aligned_helper(array_double+2, 50);
   
-  double *array_double_plus_4_bytes = (double*)(internal::UIntPtr(array_double)+4);
+  double *array_double_plus_4_bytes = (double*)(std::uintptr_t(array_double)+4);
   test_none_aligned_helper(array_double_plus_4_bytes, 50);
   test_none_aligned_helper(array_double_plus_4_bytes+1, 50);
   

@@ -10,6 +10,9 @@
 #ifndef EIGEN_CXX11_TENSOR_TENSOR_FORWARD_DECLARATIONS_H
 #define EIGEN_CXX11_TENSOR_TENSOR_FORWARD_DECLARATIONS_H
 
+// IWYU pragma: private
+#include "./InternalHeaderCheck.h"
+
 namespace Eigen {
 
 // MakePointer class is used as a container of the address space of the pointer
@@ -29,7 +32,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T* constCast(const T* data) {
 }
 
 // The StorageMemory class is a container of the device specific pointer
-// used for refering to a Pointer on TensorEvaluator class. While the TensorExpression
+// used for referring to a Pointer on TensorEvaluator class. While the TensorExpression
 // is a device-agnostic type and need MakePointer class for type conversion,
 // the TensorEvaluator class can be specialized for a device, hence it is possible
 // to construct different types of temproray storage memory in TensorEvaluator
@@ -61,8 +64,8 @@ template<typename BinaryOp, typename LeftXprType, typename RightXprType> class T
 template<typename TernaryOp, typename Arg1XprType, typename Arg2XprType, typename Arg3XprType> class TensorCwiseTernaryOp;
 template<typename IfXprType, typename ThenXprType, typename ElseXprType> class TensorSelectOp;
 template<typename Op, typename Dims, typename XprType, template <class> class MakePointer_ = MakePointer > class TensorReductionOp;
-template<typename XprType> class TensorIndexTupleOp;
-template<typename ReduceOp, typename Dims, typename XprType> class TensorTupleReducerOp;
+template<typename XprType> class TensorIndexPairOp;
+template<typename ReduceOp, typename Dims, typename XprType> class TensorPairReducerOp;
 template<typename Axis, typename LeftXprType, typename RightXprType> class TensorConcatenationOp;
 template<typename Dimensions, typename LeftXprType, typename RightXprType, typename OutputKernelType> class TensorContractionOp;
 template<typename TargetType, typename XprType> class TensorConversionOp;
@@ -105,22 +108,6 @@ struct GpuDevice;
 struct SyclDevice;
 
 #ifdef EIGEN_USE_SYCL
-
-template <typename T> struct MakeSYCLPointer {
-  typedef Eigen::TensorSycl::internal::RangeAccess<cl::sycl::access::mode::read_write, T> Type;
-};
-
-template <typename T>
-EIGEN_STRONG_INLINE const Eigen::TensorSycl::internal::RangeAccess<cl::sycl::access::mode::read_write, T>&
-constCast(const Eigen::TensorSycl::internal::RangeAccess<cl::sycl::access::mode::read_write, T>& data) {
-  return data;
-}
-
-template <typename T>
-struct StorageMemory<T, SyclDevice> : MakeSYCLPointer<T> {};
-template <typename T>
-struct StorageMemory<T, const SyclDevice> : StorageMemory<T, SyclDevice> {};
-
 namespace TensorSycl {
 namespace internal{
 template <typename Evaluator, typename Op> class GenericNondeterministicReducer;
@@ -165,7 +152,7 @@ struct IsTileable {
   // Check that block evaluation is supported and it's a preferred option (at
   // least one sub-expression has much faster block evaluation, e.g.
   // broadcasting).
-  static const bool BlockAccess =
+  static constexpr bool BlockAccess =
       TensorEvaluator<Expression, Device>::BlockAccess &&
       TensorEvaluator<Expression, Device>::PreferBlockAccess;
 

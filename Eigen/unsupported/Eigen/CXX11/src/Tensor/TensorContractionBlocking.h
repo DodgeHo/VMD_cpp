@@ -11,6 +11,9 @@
 #define EIGEN_CXX11_TENSOR_TENSOR_CONTRACTION_BLOCKING_H
 
 
+// IWYU pragma: private
+#include "./InternalHeaderCheck.h"
+
 namespace Eigen {
 namespace internal {
 

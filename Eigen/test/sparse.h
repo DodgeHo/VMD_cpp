@@ -14,8 +14,6 @@
 
 #include "main.h"
 
-#if EIGEN_HAS_CXX11
-
 #ifdef min
 #undef min
 #endif
@@ -26,8 +24,6 @@
 
 #include <unordered_map>
 #define EIGEN_UNORDERED_MAP_SUPPORT
-
-#endif
 
 #include <Eigen/Cholesky>
 #include <Eigen/LU>
@@ -58,8 +54,10 @@ initSparse(double density,
   enum { IsRowMajor = SparseMatrix<Scalar,Opt2,StorageIndex>::IsRowMajor };
   sparseMat.setZero();
   //sparseMat.reserve(int(refMat.rows()*refMat.cols()*density));
-  sparseMat.reserve(VectorXi::Constant(IsRowMajor ? refMat.rows() : refMat.cols(), int((1.5*density)*(IsRowMajor?refMat.cols():refMat.rows()))));
-  
+  int nnz = static_cast<int>((1.5 * density) * static_cast<double>(IsRowMajor ? refMat.cols() : refMat.rows()));
+  sparseMat.reserve(VectorXi::Constant(IsRowMajor ? refMat.rows() : refMat.cols(), nnz));
+
+  Index insert_count = 0;
   for(Index j=0; j<sparseMat.outerSize(); j++)
   {
     //sparseMat.startVec(j);
@@ -85,10 +83,11 @@ initSparse(double density,
       if ((flags&ForceRealDiag) && (i==j))
         v = numext::real(v);
 
-      if (v!=Scalar(0))
+      if (!numext::is_exactly_zero(v))
       {
         //sparseMat.insertBackByOuterInner(j,i) = v;
         sparseMat.insertByOuterInner(j,i) = v;
+        ++insert_count;
         if (nonzeroCoords)
           nonzeroCoords->push_back(Matrix<StorageIndex,2,1> (ai,aj));
       }
@@ -97,58 +96,12 @@ initSparse(double density,
         zeroCoords->push_back(Matrix<StorageIndex,2,1> (ai,aj));
       }
       refMat(ai,aj) = v;
+
+      // make sure we only insert as many as the sparse matrix supports
+      if(insert_count == NumTraits<StorageIndex>::highest()) return;
     }
   }
   //sparseMat.finalize();
-}
-
-template<typename Scalar,int Opt1,int Opt2,typename Index> void
-initSparse(double density,
-           Matrix<Scalar,Dynamic,Dynamic, Opt1>& refMat,
-           DynamicSparseMatrix<Scalar, Opt2, Index>& sparseMat,
-           int flags = 0,
-           std::vector<Matrix<Index,2,1> >* zeroCoords = 0,
-           std::vector<Matrix<Index,2,1> >* nonzeroCoords = 0)
-{
-  enum { IsRowMajor = DynamicSparseMatrix<Scalar,Opt2,Index>::IsRowMajor };
-  sparseMat.setZero();
-  sparseMat.reserve(int(refMat.rows()*refMat.cols()*density));
-  for(int j=0; j<sparseMat.outerSize(); j++)
-  {
-    sparseMat.startVec(j); // not needed for DynamicSparseMatrix
-    for(int i=0; i<sparseMat.innerSize(); i++)
-    {
-      int ai(i), aj(j);
-      if(IsRowMajor)
-        std::swap(ai,aj);
-      Scalar v = (internal::random<double>(0,1) < density) ? internal::random<Scalar>() : Scalar(0);
-      if ((flags&ForceNonZeroDiag) && (i==j))
-      {
-        v = internal::random<Scalar>()*Scalar(3.);
-        v = v*v + Scalar(5.);
-      }
-      if ((flags & MakeLowerTriangular) && aj>ai)
-        v = Scalar(0);
-      else if ((flags & MakeUpperTriangular) && aj<ai)
-        v = Scalar(0);
-
-      if ((flags&ForceRealDiag) && (i==j))
-        v = numext::real(v);
-
-      if (v!=Scalar(0))
-      {
-        sparseMat.insertBackByOuterInner(j,i) = v;
-        if (nonzeroCoords)
-          nonzeroCoords->push_back(Matrix<Index,2,1> (ai,aj));
-      }
-      else if (zeroCoords)
-      {
-        zeroCoords->push_back(Matrix<Index,2,1> (ai,aj));
-      }
-      refMat(ai,aj) = v;
-    }
-  }
-  sparseMat.finalize();
 }
 
 template<typename Scalar,int Options,typename Index> void
@@ -163,7 +116,7 @@ initSparse(double density,
   for(int i=0; i<refVec.size(); i++)
   {
     Scalar v = (internal::random<double>(0,1) < density) ? internal::random<Scalar>() : Scalar(0);
-    if (v!=Scalar(0))
+    if (!numext::is_exactly_zero(v))
     {
       sparseVec.insertBack(i) = v;
       if (nonzeroCoords)
@@ -199,6 +152,4 @@ initSparse(double density,
   }
 }
 
-
-#include <unsupported/Eigen/SparseExtra>
 #endif // EIGEN_TESTSPARSE_H

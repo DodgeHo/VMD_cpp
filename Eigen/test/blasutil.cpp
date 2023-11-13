@@ -13,7 +13,7 @@
 // for packet_traits<Packet*>
 // => The only workaround would be to wrap _m128 and the likes
 //    within wrappers.
-#if EIGEN_GNUC_AT_LEAST(6,0)
+#if EIGEN_GNUC_STRICT_AT_LEAST(6,0,0)
     #pragma GCC diagnostic ignored "-Wignored-attributes"
 #endif
 
@@ -196,12 +196,7 @@ EIGEN_DECLARE_TEST(blasutil)
 
 // TODO: Replace this by a call to numext::int64_t as soon as we have a way to
 // detect the typedef for int64_t on all platforms
-#if EIGEN_HAS_CXX11
         CALL_SUBTEST_4(run_test<signed long long>());
-#else
-        CALL_SUBTEST_4(run_test<signed long>());
-#endif
-
         CALL_SUBTEST_5(run_test<float_t>());
         CALL_SUBTEST_6(run_test<double_t>());
         CALL_SUBTEST_7(run_test<std::complex<float> >());

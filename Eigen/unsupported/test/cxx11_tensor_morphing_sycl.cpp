@@ -381,6 +381,7 @@ template<typename DataType, typename dev_Selector> void sycl_morphing_test_per_d
 EIGEN_DECLARE_TEST(cxx11_tensor_morphing_sycl)
 {
   for (const auto& device :Eigen::get_sycl_supported_devices()) {
+    CALL_SUBTEST(sycl_morphing_test_per_device<half>(device));
     CALL_SUBTEST(sycl_morphing_test_per_device<float>(device));
   }
 }

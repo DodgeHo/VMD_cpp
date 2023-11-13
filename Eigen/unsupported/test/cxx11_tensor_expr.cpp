@@ -130,7 +130,7 @@ static void test_3d()
   Tensor<float, 3, RowMajor> mat4(2,3,7);
   mat4 = mat2 * 3.14f;
   Tensor<float, 3> mat5(2,3,7);
-  mat5 = mat1.inverse().log();
+  mat5 = (mat1 + mat1.constant(1)).inverse().log();
   Tensor<float, 3, RowMajor> mat6(2,3,7);
   mat6 = mat2.pow(0.5f) * 3.14f;
   Tensor<float, 3> mat7(2,3,7);
@@ -150,7 +150,7 @@ static void test_3d()
       for (int k = 0; k < 7; ++k) {
         VERIFY_IS_APPROX(mat3(i,j,k), val + val);
         VERIFY_IS_APPROX(mat4(i,j,k), val * 3.14f);
-        VERIFY_IS_APPROX(mat5(i,j,k), logf(1.0f/val));
+        VERIFY_IS_APPROX(mat5(i,j,k), logf(1.0f/(val + 1)));
         VERIFY_IS_APPROX(mat6(i,j,k), sqrtf(val) * 3.14f);
         VERIFY_IS_APPROX(mat7(i,j,k), expf((std::max)(val, mat5(i,j,k) * 2.0f)));
         VERIFY_IS_APPROX(mat8(i,j,k), expf(-val) * 3.14f);
@@ -200,14 +200,14 @@ static void test_boolean()
   std::iota(vec.data(), vec.data() + kSize, 0);
 
   // Test ||.
-  Tensor<bool, 1> bool1 = vec < vec.constant(1) || vec > vec.constant(4);
+  Tensor<bool, 1> bool1 = (vec < vec.constant(1) || vec > vec.constant(4)).cast<bool>();
   for (int i = 0; i < kSize; ++i) {
     bool expected = i < 1 || i > 4;
     VERIFY_IS_EQUAL(bool1[i], expected);
   }
 
   // Test &&, including cast of operand vec.
-  Tensor<bool, 1> bool2 = vec.cast<bool>() && vec < vec.constant(4);
+  Tensor<bool, 1> bool2 = vec.cast<bool>() && (vec < vec.constant(4)).cast<bool>();
   for (int i = 0; i < kSize; ++i) {
     bool expected = bool(i) && i < 4;
     VERIFY_IS_EQUAL(bool2[i], expected);
@@ -218,7 +218,7 @@ static void test_boolean()
   // CoeffReturnType is set to match Op return type of bool for Unary and Binary
   // Ops.
   Tensor<bool, 1> bool3 = vec.cast<bool>() && bool2;
-  bool3 = vec < vec.constant(4) && bool2;
+  bool3 = (vec < vec.constant(4)).cast<bool>() && bool2;
 }
 
 static void test_functors()
@@ -280,6 +280,8 @@ static void test_type_casting()
 
 static void test_select()
 {
+  using TypedGTOp = internal::scalar_cmp_op<float, float, internal::cmp_GT, true>;
+
   Tensor<float, 3> selector(2,3,7);
   Tensor<float, 3> mat1(2,3,7);
   Tensor<float, 3> mat2(2,3,7);
@@ -288,6 +290,8 @@ static void test_select()
   selector.setRandom();
   mat1.setRandom();
   mat2.setRandom();
+
+  // test select with a boolean condition
   result = (selector > selector.constant(0.5f)).select(mat1, mat2);
 
   for (int i = 0; i < 2; ++i) {
@@ -297,6 +301,18 @@ static void test_select()
       }
     }
   }
+
+  // test select with a typed condition
+  result = selector.binaryExpr(selector.constant(0.5f), TypedGTOp()).select(mat1, mat2);
+
+  for (int i = 0; i < 2; ++i) {
+    for (int j = 0; j < 3; ++j) {
+      for (int k = 0; k < 7; ++k) {
+        VERIFY_IS_APPROX(result(i, j, k), (selector(i, j, k) > 0.5f) ? mat1(i, j, k) : mat2(i, j, k));
+      }
+    }
+  }
+
 }
 
 template <typename Scalar>
@@ -305,10 +321,10 @@ void test_minmax_nan_propagation_templ() {
     const Scalar kNaN = std::numeric_limits<Scalar>::quiet_NaN();
     const Scalar kInf = std::numeric_limits<Scalar>::infinity();
     const Scalar kZero(0);
-    Tensor<Scalar, 1> vec_all_nan(size);
+    Tensor<Scalar, 1> vec_full_nan(size);
     Tensor<Scalar, 1> vec_one_nan(size);
     Tensor<Scalar, 1> vec_zero(size);
-    vec_all_nan.setConstant(kNaN);
+    vec_full_nan.setConstant(kNaN);
     vec_zero.setZero();
     vec_one_nan.setZero();
     vec_one_nan(size/2) = kNaN;
@@ -330,12 +346,12 @@ void test_minmax_nan_propagation_templ() {
     // max(nan, 0) = nan
     // max(0, nan) = nan
     // max(0, 0) = 0
-    verify_all_nan(vec_all_nan.template cwiseMax<PropagateNaN>(kNaN));
-    verify_all_nan(vec_all_nan.template cwiseMax<PropagateNaN>(vec_all_nan));
-    verify_all_nan(vec_all_nan.template cwiseMax<PropagateNaN>(kZero));
-    verify_all_nan(vec_all_nan.template cwiseMax<PropagateNaN>(vec_zero));
+    verify_all_nan(vec_full_nan.template cwiseMax<PropagateNaN>(kNaN));
+    verify_all_nan(vec_full_nan.template cwiseMax<PropagateNaN>(vec_full_nan));
+    verify_all_nan(vec_full_nan.template cwiseMax<PropagateNaN>(kZero));
+    verify_all_nan(vec_full_nan.template cwiseMax<PropagateNaN>(vec_zero));
     verify_all_nan(vec_zero.template cwiseMax<PropagateNaN>(kNaN));
-    verify_all_nan(vec_zero.template cwiseMax<PropagateNaN>(vec_all_nan));
+    verify_all_nan(vec_zero.template cwiseMax<PropagateNaN>(vec_full_nan));
     verify_all_zero(vec_zero.template cwiseMax<PropagateNaN>(kZero));
     verify_all_zero(vec_zero.template cwiseMax<PropagateNaN>(vec_zero));
 
@@ -344,12 +360,12 @@ void test_minmax_nan_propagation_templ() {
     // max(nan, 0) = 0
     // max(0, nan) = 0
     // max(0, 0) = 0
-    verify_all_nan(vec_all_nan.template cwiseMax<PropagateNumbers>(kNaN));
-    verify_all_nan(vec_all_nan.template cwiseMax<PropagateNumbers>(vec_all_nan));
-    verify_all_zero(vec_all_nan.template cwiseMax<PropagateNumbers>(kZero));
-    verify_all_zero(vec_all_nan.template cwiseMax<PropagateNumbers>(vec_zero));
+    verify_all_nan(vec_full_nan.template cwiseMax<PropagateNumbers>(kNaN));
+    verify_all_nan(vec_full_nan.template cwiseMax<PropagateNumbers>(vec_full_nan));
+    verify_all_zero(vec_full_nan.template cwiseMax<PropagateNumbers>(kZero));
+    verify_all_zero(vec_full_nan.template cwiseMax<PropagateNumbers>(vec_zero));
     verify_all_zero(vec_zero.template cwiseMax<PropagateNumbers>(kNaN));
-    verify_all_zero(vec_zero.template cwiseMax<PropagateNumbers>(vec_all_nan));
+    verify_all_zero(vec_zero.template cwiseMax<PropagateNumbers>(vec_full_nan));
     verify_all_zero(vec_zero.template cwiseMax<PropagateNumbers>(kZero));
     verify_all_zero(vec_zero.template cwiseMax<PropagateNumbers>(vec_zero));
 
@@ -358,12 +374,12 @@ void test_minmax_nan_propagation_templ() {
     // min(nan, 0) = nan
     // min(0, nan) = nan
     // min(0, 0) = 0
-    verify_all_nan(vec_all_nan.template cwiseMin<PropagateNaN>(kNaN));
-    verify_all_nan(vec_all_nan.template cwiseMin<PropagateNaN>(vec_all_nan));
-    verify_all_nan(vec_all_nan.template cwiseMin<PropagateNaN>(kZero));
-    verify_all_nan(vec_all_nan.template cwiseMin<PropagateNaN>(vec_zero));
+    verify_all_nan(vec_full_nan.template cwiseMin<PropagateNaN>(kNaN));
+    verify_all_nan(vec_full_nan.template cwiseMin<PropagateNaN>(vec_full_nan));
+    verify_all_nan(vec_full_nan.template cwiseMin<PropagateNaN>(kZero));
+    verify_all_nan(vec_full_nan.template cwiseMin<PropagateNaN>(vec_zero));
     verify_all_nan(vec_zero.template cwiseMin<PropagateNaN>(kNaN));
-    verify_all_nan(vec_zero.template cwiseMin<PropagateNaN>(vec_all_nan));
+    verify_all_nan(vec_zero.template cwiseMin<PropagateNaN>(vec_full_nan));
     verify_all_zero(vec_zero.template cwiseMin<PropagateNaN>(kZero));
     verify_all_zero(vec_zero.template cwiseMin<PropagateNaN>(vec_zero));
 
@@ -372,12 +388,12 @@ void test_minmax_nan_propagation_templ() {
     // min(nan, 0) = 0
     // min(0, nan) = 0
     // min(0, 0) = 0
-    verify_all_nan(vec_all_nan.template cwiseMin<PropagateNumbers>(kNaN));
-    verify_all_nan(vec_all_nan.template cwiseMin<PropagateNumbers>(vec_all_nan));
-    verify_all_zero(vec_all_nan.template cwiseMin<PropagateNumbers>(kZero));
-    verify_all_zero(vec_all_nan.template cwiseMin<PropagateNumbers>(vec_zero));
+    verify_all_nan(vec_full_nan.template cwiseMin<PropagateNumbers>(kNaN));
+    verify_all_nan(vec_full_nan.template cwiseMin<PropagateNumbers>(vec_full_nan));
+    verify_all_zero(vec_full_nan.template cwiseMin<PropagateNumbers>(kZero));
+    verify_all_zero(vec_full_nan.template cwiseMin<PropagateNumbers>(vec_zero));
     verify_all_zero(vec_zero.template cwiseMin<PropagateNumbers>(kNaN));
-    verify_all_zero(vec_zero.template cwiseMin<PropagateNumbers>(vec_all_nan));
+    verify_all_zero(vec_zero.template cwiseMin<PropagateNumbers>(vec_full_nan));
     verify_all_zero(vec_zero.template cwiseMin<PropagateNumbers>(kZero));
     verify_all_zero(vec_zero.template cwiseMin<PropagateNumbers>(vec_zero));
 
@@ -397,13 +413,13 @@ void test_minmax_nan_propagation_templ() {
     VERIFY_IS_EQUAL(val(), kZero);
 
     // Test NaN propagation for tensor of all NaNs.
-    val = vec_all_nan.template minimum<PropagateNaN>();
+    val = vec_full_nan.template minimum<PropagateNaN>();
     VERIFY((numext::isnan)(val()));
-    val = vec_all_nan.template minimum<PropagateNumbers>();
+    val = vec_full_nan.template minimum<PropagateNumbers>();
     VERIFY_IS_EQUAL(val(), kInf);
-    val = vec_all_nan.template maximum<PropagateNaN>();
+    val = vec_full_nan.template maximum<PropagateNaN>();
     VERIFY((numext::isnan)(val()));
-    val = vec_all_nan.template maximum<PropagateNumbers>();
+    val = vec_full_nan.template maximum<PropagateNumbers>();
     VERIFY_IS_EQUAL(val(), -kInf);
 
     // Test NaN propagation for tensor with a single NaN.

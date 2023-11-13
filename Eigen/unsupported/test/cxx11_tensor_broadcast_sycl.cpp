@@ -139,6 +139,7 @@ template<typename DataType> void sycl_broadcast_test_per_device(const cl::sycl::
 
 EIGEN_DECLARE_TEST(cxx11_tensor_broadcast_sycl) {
   for (const auto& device :Eigen::get_sycl_supported_devices()) {
+    CALL_SUBTEST(sycl_broadcast_test_per_device<half>(device));
     CALL_SUBTEST(sycl_broadcast_test_per_device<float>(device));
   }
 }

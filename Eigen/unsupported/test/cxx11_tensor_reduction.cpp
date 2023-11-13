@@ -370,13 +370,7 @@ static void test_static_dims() {
   Tensor<float, 2, DataLayout> out(72, 97);
   in.setRandom();
 
-#if !EIGEN_HAS_CONSTEXPR
-  array<int, 2> reduction_axis;
-  reduction_axis[0] = 1;
-  reduction_axis[1] = 3;
-#else
   Eigen::IndexList<Eigen::type2index<1>, Eigen::type2index<3> > reduction_axis;
-#endif
 
   out = in.maximum(reduction_axis);
 
@@ -400,14 +394,8 @@ static void test_innermost_last_dims() {
   in.setRandom();
 
 // Reduce on the innermost dimensions.
-#if !EIGEN_HAS_CONSTEXPR
-  array<int, 2> reduction_axis;
-  reduction_axis[0] = 0;
-  reduction_axis[1] = 1;
-#else
   // This triggers the use of packets for ColMajor.
   Eigen::IndexList<Eigen::type2index<0>, Eigen::type2index<1> > reduction_axis;
-#endif
 
   out = in.maximum(reduction_axis);
 
@@ -431,14 +419,8 @@ static void test_innermost_first_dims() {
   in.setRandom();
 
 // Reduce on the innermost dimensions.
-#if !EIGEN_HAS_CONSTEXPR
-  array<int, 2> reduction_axis;
-  reduction_axis[0] = 2;
-  reduction_axis[1] = 3;
-#else
   // This triggers the use of packets for RowMajor.
   Eigen::IndexList<Eigen::type2index<2>, Eigen::type2index<3>> reduction_axis;
-#endif
 
   out = in.maximum(reduction_axis);
 
@@ -462,14 +444,8 @@ static void test_reduce_middle_dims() {
   in.setRandom();
 
 // Reduce on the innermost dimensions.
-#if !EIGEN_HAS_CONSTEXPR
-  array<int, 2> reduction_axis;
-  reduction_axis[0] = 1;
-  reduction_axis[1] = 2;
-#else
   // This triggers the use of packets for RowMajor.
   Eigen::IndexList<Eigen::type2index<1>, Eigen::type2index<2>> reduction_axis;
-#endif
 
   out = in.maximum(reduction_axis);
 
@@ -486,22 +462,31 @@ static void test_reduce_middle_dims() {
   }
 }
 
-static void test_sum_accuracy() {
-  Tensor<float, 3> tensor(101, 101, 101);
-  for (float prescribed_mean : {1.0f, 10.0f, 100.0f, 1000.0f, 10000.0f}) {
-    tensor.setRandom();
-    tensor += tensor.constant(prescribed_mean);
+template <typename ScalarType, int num_elements, int max_mean>
+void test_sum_accuracy() {
+  Tensor<double, 1> double_tensor(num_elements);
+  Tensor<ScalarType, 1> tensor(num_elements);
+  for (double prescribed_mean = 0; prescribed_mean <= max_mean; prescribed_mean = numext::maxi(1.0, prescribed_mean*3.99)) {
+    // FIXME: NormalRandomGenerator doesn't work in bfloat and half.
+    double_tensor.setRandom<Eigen::internal::NormalRandomGenerator<double>>();
+    double_tensor += double_tensor.constant(prescribed_mean);
+    tensor = double_tensor.cast<ScalarType>();
 
-    Tensor<float, 0> sum = tensor.sum();
+    Tensor<ScalarType, 0> sum;
+    sum = tensor.sum();
+
+    // Compute the reference value in double precsion.
     double expected_sum = 0.0;
-    for (int i = 0; i < 101; ++i) {
-      for (int j = 0; j < 101; ++j) {
-        for (int k = 0; k < 101; ++k) {
-          expected_sum += static_cast<double>(tensor(i, j, k));
-        }
-      }
+    double abs_sum = 0.0;
+    for (int i = 0; i < num_elements; ++i) {
+      expected_sum += static_cast<double>(tensor(i));
+      abs_sum += static_cast<double>(numext::abs(tensor(i)));
     }
-    VERIFY_IS_APPROX(sum(), static_cast<float>(expected_sum));
+    // Test against probabilistic forward error bound. In reality, the error is much smaller
+    // when we use tree summation.
+    double err = Eigen::numext::abs(static_cast<double>(sum()) - expected_sum);
+    double tol = numext::sqrt(static_cast<double>(num_elements)) * static_cast<double>(NumTraits<ScalarType>::epsilon()) * abs_sum;
+    VERIFY_LE(err, tol);
   }
 }
 
@@ -528,5 +513,11 @@ EIGEN_DECLARE_TEST(cxx11_tensor_reduction) {
   CALL_SUBTEST(test_innermost_first_dims<RowMajor>());
   CALL_SUBTEST(test_reduce_middle_dims<ColMajor>());
   CALL_SUBTEST(test_reduce_middle_dims<RowMajor>());
-  CALL_SUBTEST(test_sum_accuracy());
+  CALL_SUBTEST((test_sum_accuracy<float,10*1024*1024,8*1024>()));
+  CALL_SUBTEST((test_sum_accuracy<Eigen::bfloat16,10*1024*1024,8*1024>()));
+  // The range of half is limited to 65519 when using round-to-even,
+  // so we are severely limited in the size and mean of the tensors
+  // we can reduce without overflow.
+  CALL_SUBTEST((test_sum_accuracy<Eigen::half,4*1024,16>()));
+  CALL_SUBTEST((test_sum_accuracy<Eigen::half,10*1024*1024,0>()));
 }

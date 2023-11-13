@@ -34,7 +34,7 @@ void check_stdvector_matrix(const MatrixType& m)
   VERIFY_IS_APPROX(v[21], y);
   v.push_back(x);
   VERIFY_IS_APPROX(v[22], x);
-  VERIFY((internal::UIntPtr)&(v[22]) == (internal::UIntPtr)&(v[21]) + sizeof(MatrixType));
+  VERIFY((std::uintptr_t)&(v[22]) == (std::uintptr_t)&(v[21]) + sizeof(MatrixType));
 
   // do a lot of push_back such that the vector gets internally resized
   // (with memory reallocation)
@@ -69,7 +69,7 @@ void check_stdvector_transform(const TransformType&)
   VERIFY_IS_APPROX(v[21], y);
   v.push_back(x);
   VERIFY_IS_APPROX(v[22], x);
-  VERIFY((internal::UIntPtr)&(v[22]) == (internal::UIntPtr)&(v[21]) + sizeof(TransformType));
+  VERIFY((std::uintptr_t)&(v[22]) == (std::uintptr_t)&(v[21]) + sizeof(TransformType));
 
   // do a lot of push_back such that the vector gets internally resized
   // (with memory reallocation)
@@ -104,7 +104,7 @@ void check_stdvector_quaternion(const QuaternionType&)
   VERIFY_IS_APPROX(v[21], y);
   v.push_back(x);
   VERIFY_IS_APPROX(v[22], x);
-  VERIFY((internal::UIntPtr)&(v[22]) == (internal::UIntPtr)&(v[21]) + sizeof(QuaternionType));
+  VERIFY((std::uintptr_t)&(v[22]) == (std::uintptr_t)&(v[21]) + sizeof(QuaternionType));
 
   // do a lot of push_back such that the vector gets internally resized
   // (with memory reallocation)
@@ -124,7 +124,7 @@ void std_vector_gcc_warning()
 {
   typedef Eigen::Vector3f T;
   std::vector<T, Eigen::aligned_allocator<T> > v;
-  v.push_back(T());
+  v.push_back(T(1.0f,2.0f,3.0f));
 }
 
 EIGEN_DECLARE_TEST(stdvector)

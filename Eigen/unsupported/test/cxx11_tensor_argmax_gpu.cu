@@ -23,8 +23,8 @@ template <int Layout>
 void test_gpu_simple_argmax()
 {
   Tensor<double, 3, Layout> in(Eigen::array<DenseIndex, 3>(72,53,97));
-  Tensor<DenseIndex, 1, Layout> out_max(Eigen::array<DenseIndex, 1>(1));
-  Tensor<DenseIndex, 1, Layout> out_min(Eigen::array<DenseIndex, 1>(1));
+  Tensor<DenseIndex, 0, Layout> out_max;
+  Tensor<DenseIndex, 0, Layout> out_min;
   in.setRandom();
   in *= in.constant(100.0);
   in(0, 0, 0) = -1000.0;
@@ -46,8 +46,8 @@ void test_gpu_simple_argmax()
   Eigen::GpuDevice gpu_device(&stream);
 
   Eigen::TensorMap<Eigen::Tensor<double, 3, Layout>, Aligned > gpu_in(d_in, Eigen::array<DenseIndex, 3>(72,53,97));
-  Eigen::TensorMap<Eigen::Tensor<DenseIndex, 1, Layout>, Aligned > gpu_out_max(d_out_max, Eigen::array<DenseIndex, 1>(1));
-  Eigen::TensorMap<Eigen::Tensor<DenseIndex, 1, Layout>, Aligned > gpu_out_min(d_out_min, Eigen::array<DenseIndex, 1>(1));
+  Eigen::TensorMap<Eigen::Tensor<DenseIndex, 0, Layout>, Aligned > gpu_out_max(d_out_max);
+  Eigen::TensorMap<Eigen::Tensor<DenseIndex, 0, Layout>, Aligned > gpu_out_min(d_out_min);
 
   gpu_out_max.device(gpu_device) = gpu_in.argmax();
   gpu_out_min.device(gpu_device) = gpu_in.argmin();
@@ -56,8 +56,8 @@ void test_gpu_simple_argmax()
   assert(gpuMemcpyAsync(out_min.data(), d_out_min, out_bytes, gpuMemcpyDeviceToHost, gpu_device.stream()) == gpuSuccess);
   assert(gpuStreamSynchronize(gpu_device.stream()) == gpuSuccess);
 
-  VERIFY_IS_EQUAL(out_max(Eigen::array<DenseIndex, 1>(0)), 72*53*97 - 1);
-  VERIFY_IS_EQUAL(out_min(Eigen::array<DenseIndex, 1>(0)), 0);
+  VERIFY_IS_EQUAL(out_max(), 72*53*97 - 1);
+  VERIFY_IS_EQUAL(out_min(), 0);
 
   gpuFree(d_in);
   gpuFree(d_out_max);

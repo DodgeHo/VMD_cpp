@@ -1,7 +1,7 @@
 // This file is part of Eigen, a lightweight C++ template library
 // for linear algebra.
 //
-// Copyright (C) 20013 Gael Guennebaud <gael.guennebaud@inria.fr>
+// Copyright (C) 2013 Gael Guennebaud <gael.guennebaud@inria.fr>
 //
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
@@ -21,7 +21,7 @@
 // Deal with i387 extended precision
 #if EIGEN_ARCH_i386 && !(EIGEN_ARCH_x86_64)
 
-#if EIGEN_COMP_GNUC_STRICT && EIGEN_GNUC_AT_LEAST(4,4)
+#if EIGEN_COMP_GNUC_STRICT
 #pragma GCC optimize ("-ffloat-store")
 #else
 #undef VERIFY_IS_EQUAL
@@ -106,9 +106,6 @@ template<typename VectorType> void ref_vector(const VectorType& m)
   { RefMat    rm0 = v1.block(0,0,size,1); VERIFY_IS_EQUAL(rm0, v1); }
   { RefDynMat rv1 = v1;                   VERIFY_IS_EQUAL(rv1, v1); }
   { RefDynMat rv1 = v1.block(0,0,size,1); VERIFY_IS_EQUAL(rv1, v1); }
-  { VERIFY_RAISES_ASSERT( RefMat    rm0 = v1.block(0, 0, size, 0); EIGEN_UNUSED_VARIABLE(rm0); ); }
-  if(VectorType::SizeAtCompileTime!=1)
-  { VERIFY_RAISES_ASSERT( RefDynMat rv1 = v1.block(0, 0, size, 0); EIGEN_UNUSED_VARIABLE(rv1); ); }
 
   RefDynMat rv2 = v1.segment(i,bsize);
   VERIFY_IS_EQUAL(rv2, v1.segment(i,bsize));
@@ -207,7 +204,7 @@ void ref_vector_fixed_sizes()
 template<typename PlainObjectType> void check_const_correctness(const PlainObjectType&)
 {
   // verify that ref-to-const don't have LvalueBit
-  typedef typename internal::add_const<PlainObjectType>::type ConstPlainObjectType;
+  typedef std::add_const_t<PlainObjectType> ConstPlainObjectType;
   VERIFY( !(internal::traits<Ref<ConstPlainObjectType> >::Flags & LvalueBit) );
   VERIFY( !(internal::traits<Ref<ConstPlainObjectType, Aligned> >::Flags & LvalueBit) );
   VERIFY( !(Ref<ConstPlainObjectType>::Flags & LvalueBit) );
@@ -320,15 +317,39 @@ void test_ref_overloads()
   test_ref_ambiguous(A, B);
 }
 
-void test_ref_fixed_size_assert()
+template<typename Ref_>
+struct RefDerived
+  : Ref_
 {
-  Vector4f v4 = Vector4f::Random();
-  VectorXf vx = VectorXf::Random(10);
-  VERIFY_RAISES_STATIC_ASSERT( Ref<Vector3f> y = v4; (void)y; );
-  VERIFY_RAISES_STATIC_ASSERT( Ref<Vector3f> y = vx.head<4>(); (void)y; );
-  VERIFY_RAISES_STATIC_ASSERT( Ref<const Vector3f> y = v4; (void)y; );
-  VERIFY_RAISES_STATIC_ASSERT( Ref<const Vector3f> y = vx.head<4>(); (void)y; );
-  VERIFY_RAISES_STATIC_ASSERT( Ref<const Vector3f> y = 2*v4; (void)y; );
+  using Ref_::m_object;
+};
+
+template <typename MatrixType, typename Derived> void test_cref_move_ctor(const DenseBase<Derived> &expr) {
+  typedef Ref<const MatrixType> CRef;
+  typedef RefDerived<CRef> CRefDerived;
+
+  const bool owns_data = !bool(internal::traits<CRef>::template match<Derived>::type::value);
+  CRef cref1(expr);
+  const double *data1 = cref1.data(),
+               *obj_data1 = static_cast<CRefDerived &>(cref1).m_object.data();
+  VERIFY(test_is_equal(data1, obj_data1, owns_data));
+  CRef cref2(std::move(cref1));
+  VERIFY_IS_EQUAL(data1, cref1.data());
+  const double *data2 = cref2.data(),
+               *obj_data2 = static_cast<CRefDerived &>(cref2).m_object.data();
+  VERIFY(test_is_equal(data1, data2, MatrixType::MaxSizeAtCompileTime == Dynamic || !owns_data));
+  VERIFY(test_is_equal(data1, obj_data2, MatrixType::MaxSizeAtCompileTime == Dynamic && owns_data));
+}
+
+template <typename MatrixType>
+void test_contiguous_ref_no_copy(const PlainObjectBase<MatrixType> &obj) {
+  typedef Ref<MatrixType, Unaligned, Stride<0, 0>> Ref_;
+  typedef Ref<const MatrixType, Unaligned, Stride<0, 0>> CRef_;
+  MatrixType m(obj);
+  Ref_ ref(m);
+  VERIFY(test_is_equal(ref.data(), m.data(), true));
+  CRef_ cref(m);
+  VERIFY(test_is_equal(cref.data(), m.data(), true));
 }
 
 EIGEN_DECLARE_TEST(ref)
@@ -356,5 +377,17 @@ EIGEN_DECLARE_TEST(ref)
   }
   
   CALL_SUBTEST_7( test_ref_overloads() );
-  CALL_SUBTEST_7( test_ref_fixed_size_assert() );
+
+  CALL_SUBTEST_9( test_cref_move_ctor<VectorXd>(VectorXd::Ones(9)) );
+  CALL_SUBTEST_9( test_cref_move_ctor<VectorXd>(VectorXd(9)) );
+  CALL_SUBTEST_9( test_cref_move_ctor<Vector3d>(Vector3d::Ones()) );
+  CALL_SUBTEST_9( test_cref_move_ctor<Vector3d>(Vector3d()) );
+  CALL_SUBTEST_9( test_cref_move_ctor<MatrixXd>(MatrixXd::Ones(9, 5)) );
+  CALL_SUBTEST_9( test_cref_move_ctor<MatrixXd>(MatrixXd(9, 5)) );
+  CALL_SUBTEST_9( test_cref_move_ctor<Matrix3d>(Matrix3d::Ones()) );
+  CALL_SUBTEST_9( test_cref_move_ctor<Matrix3d>(Matrix3d()) );
+  CALL_SUBTEST_10(test_contiguous_ref_no_copy(VectorXd(9)));
+  CALL_SUBTEST_10(test_contiguous_ref_no_copy(Vector3d()));
+  CALL_SUBTEST_10(test_contiguous_ref_no_copy(MatrixXd(9, 5)));
+  CALL_SUBTEST_10(test_contiguous_ref_no_copy(Matrix3d()));
 }

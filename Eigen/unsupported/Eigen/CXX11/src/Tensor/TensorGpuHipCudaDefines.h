@@ -41,6 +41,7 @@
 #define gpuMalloc hipMalloc
 #define gpuFree hipFree
 #define gpuMemsetAsync hipMemsetAsync
+#define gpuMemset2DAsync hipMemset2DAsync
 #define gpuMemcpyAsync hipMemcpyAsync
 #define gpuMemcpyDeviceToDevice hipMemcpyDeviceToDevice
 #define gpuMemcpyDeviceToHost hipMemcpyDeviceToHost
@@ -71,6 +72,7 @@
 #define gpuMalloc cudaMalloc
 #define gpuFree cudaFree
 #define gpuMemsetAsync cudaMemsetAsync
+#define gpuMemset2DAsync cudaMemset2DAsync
 #define gpuMemcpyAsync cudaMemcpyAsync
 #define gpuMemcpyDeviceToDevice cudaMemcpyDeviceToDevice
 #define gpuMemcpyDeviceToHost cudaMemcpyDeviceToHost
@@ -91,7 +93,7 @@
 // HIPCC do not support the use of assert on the GPU side.
 #define gpu_assert(COND)
 #else
-#define gpu_assert(COND) assert(COND)
+#define gpu_assert(COND) eigen_assert(COND)
 #endif
 
 #endif // gpu_assert

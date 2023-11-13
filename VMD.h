@@ -2,10 +2,10 @@
 #include <vector>
 #include <cmath>
 #include <ctime>
-#include "Eigen/Eigen/Eigen"
-#include "Eigen/unsupported/Eigen/FFT"
-//#include <Eigen/Core>
-//#include <unsupported/Eigen/FFT>
+#include "eigen/Eigen/Eigen"
+#include "eigen/unsupported/Eigen/FFT"
+//#include <eigen/Eigen/Core>
+//#include <eigen/unsupported/Eigen/FFT>
 
 #define pI acos(-1)
 using namespace Eigen;

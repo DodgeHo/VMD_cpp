@@ -10,6 +10,9 @@
 #ifndef EIGEN_CXX11_TENSOR_TENSOR_CONCATENATION_H
 #define EIGEN_CXX11_TENSOR_TENSOR_CONCATENATION_H
 
+// IWYU pragma: private
+#include "./InternalHeaderCheck.h"
+
 namespace Eigen {
 
 /** \class TensorConcatenationOp
@@ -32,13 +35,13 @@ struct traits<TensorConcatenationOp<Axis, LhsXprType, RhsXprType> >
                                       typename traits<RhsXprType>::Index>::type Index;
   typedef typename LhsXprType::Nested LhsNested;
   typedef typename RhsXprType::Nested RhsNested;
-  typedef typename remove_reference<LhsNested>::type _LhsNested;
-  typedef typename remove_reference<RhsNested>::type _RhsNested;
-  static const int NumDimensions = traits<LhsXprType>::NumDimensions;
-  static const int Layout = traits<LhsXprType>::Layout;
+  typedef std::remove_reference_t<LhsNested> LhsNested_;
+  typedef std::remove_reference_t<RhsNested> RhsNested_;
+  static constexpr int NumDimensions = traits<LhsXprType>::NumDimensions;
+  static constexpr int Layout = traits<LhsXprType>::Layout;
   enum { Flags = 0 };
-  typedef typename conditional<Pointer_type_promotion<typename LhsXprType::Scalar, Scalar>::val,
-                               typename traits<LhsXprType>::PointerType, typename traits<RhsXprType>::PointerType>::type PointerType;
+  typedef std::conditional_t<Pointer_type_promotion<typename LhsXprType::Scalar, Scalar>::val,
+                        typename traits<LhsXprType>::PointerType, typename traits<RhsXprType>::PointerType> PointerType;
 };
 
 template<typename Axis, typename LhsXprType, typename RhsXprType>
@@ -73,11 +76,11 @@ class TensorConcatenationOp : public TensorBase<TensorConcatenationOp<Axis, LhsX
         : m_lhs_xpr(lhs), m_rhs_xpr(rhs), m_axis(axis) {}
 
     EIGEN_DEVICE_FUNC
-    const typename internal::remove_all<typename LhsXprType::Nested>::type&
+    const internal::remove_all_t<typename LhsXprType::Nested>&
     lhsExpression() const { return m_lhs_xpr; }
 
     EIGEN_DEVICE_FUNC
-    const typename internal::remove_all<typename RhsXprType::Nested>::type&
+    const internal::remove_all_t<typename RhsXprType::Nested>&
     rhsExpression() const { return m_rhs_xpr; }
 
     EIGEN_DEVICE_FUNC const Axis& axis() const { return m_axis; }
@@ -96,14 +99,15 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
 {
   typedef TensorConcatenationOp<Axis, LeftArgType, RightArgType> XprType;
   typedef typename XprType::Index Index;
-  static const int NumDims = internal::array_size<typename TensorEvaluator<LeftArgType, Device>::Dimensions>::value;
-  static const int RightNumDims = internal::array_size<typename TensorEvaluator<RightArgType, Device>::Dimensions>::value;
+  static constexpr int NumDims = internal::array_size<typename TensorEvaluator<LeftArgType, Device>::Dimensions>::value;
+  static constexpr int RightNumDims = internal::array_size<typename TensorEvaluator<RightArgType, Device>::Dimensions>::value;
   typedef DSizes<Index, NumDims> Dimensions;
   typedef typename XprType::Scalar Scalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
   typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
   typedef StorageMemory<CoeffReturnType, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;
+  static constexpr int Layout = TensorEvaluator<LeftArgType, Device>::Layout;
   enum {
     IsAligned         = false,
     PacketAccess      = TensorEvaluator<LeftArgType, Device>::PacketAccess &&
@@ -111,7 +115,6 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
     BlockAccess       = false,
     PreferBlockAccess = TensorEvaluator<LeftArgType, Device>::PreferBlockAccess ||
                         TensorEvaluator<RightArgType, Device>::PreferBlockAccess,
-    Layout            = TensorEvaluator<LeftArgType, Device>::Layout,
     RawAccess         = false
   };
 
@@ -277,14 +280,6 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
 
   EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return NULL; }
 
-  #ifdef EIGEN_USE_SYCL
-  // binding placeholder accessors to a command group handler for SYCL
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void bind(cl::sycl::handler &cgh) const {
-    m_leftImpl.bind(cgh);
-    m_rightImpl.bind(cgh);
-  }
-  #endif
-
   protected:
     Dimensions m_dimensions;
     array<Index, NumDims> m_outputStrides;
@@ -303,6 +298,7 @@ template<typename Axis, typename LeftArgType, typename RightArgType, typename De
   typedef TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgType>, Device> Base;
   typedef TensorConcatenationOp<Axis, LeftArgType, RightArgType> XprType;
   typedef typename Base::Dimensions Dimensions;
+  static constexpr int Layout = TensorEvaluator<LeftArgType, Device>::Layout;
   enum {
     IsAligned         = false,
     PacketAccess      = TensorEvaluator<LeftArgType, Device>::PacketAccess &&
@@ -310,7 +306,6 @@ template<typename Axis, typename LeftArgType, typename RightArgType, typename De
     BlockAccess       = false,
     PreferBlockAccess = TensorEvaluator<LeftArgType, Device>::PreferBlockAccess ||
                         TensorEvaluator<RightArgType, Device>::PreferBlockAccess,
-    Layout            = TensorEvaluator<LeftArgType, Device>::Layout,
     RawAccess         = false
   };
 
@@ -329,7 +324,7 @@ template<typename Axis, typename LeftArgType, typename RightArgType, typename De
   typedef typename XprType::CoeffReturnType CoeffReturnType;
   typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType& coeffRef(Index index)
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType& coeffRef(Index index) const
   {
     // Collect dimension-wise indices (subs).
     array<Index, Base::NumDims> subs;
@@ -358,7 +353,7 @@ template<typename Axis, typename LeftArgType, typename RightArgType, typename De
   }
 
   template <int StoreMode> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-  void writePacket(Index index, const PacketReturnType& x)
+  void writePacket(Index index, const PacketReturnType& x) const
   {
     const int packetSize = PacketType<CoeffReturnType, Device>::size;
     EIGEN_STATIC_ASSERT((packetSize > 1), YOU_MADE_A_PROGRAMMING_MISTAKE)

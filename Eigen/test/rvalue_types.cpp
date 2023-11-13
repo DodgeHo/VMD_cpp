@@ -10,16 +10,11 @@
 #define EIGEN_RUNTIME_NO_MALLOC
 
 #include "main.h"
-#if EIGEN_HAS_CXX11
 #include "MovableScalar.h"
-#endif
 #include "SafeScalar.h"
 
 #include <Eigen/Core>
 
-using internal::UIntPtr;
-
-#if EIGEN_HAS_RVALUE_REFERENCES
 template <typename MatrixType>
 void rvalue_copyassign(const MatrixType& m)
 {
@@ -28,18 +23,18 @@ void rvalue_copyassign(const MatrixType& m)
   
   // create a temporary which we are about to destroy by moving
   MatrixType tmp = m;
-  UIntPtr src_address = reinterpret_cast<UIntPtr>(tmp.data());
+  std::uintptr_t src_address = reinterpret_cast<std::uintptr_t>(tmp.data());
   
   Eigen::internal::set_is_malloc_allowed(false); // moving from an rvalue reference shall never allocate
   // move the temporary to n
   MatrixType n = std::move(tmp);
-  UIntPtr dst_address = reinterpret_cast<UIntPtr>(n.data());
+  std::uintptr_t dst_address = reinterpret_cast<std::uintptr_t>(n.data());
   if (MatrixType::RowsAtCompileTime==Dynamic|| MatrixType::ColsAtCompileTime==Dynamic)
   {
     // verify that we actually moved the guts
     VERIFY_IS_EQUAL(src_address, dst_address);
     VERIFY_IS_EQUAL(tmp.size(), 0);
-    VERIFY_IS_EQUAL(reinterpret_cast<UIntPtr>(tmp.data()), UIntPtr(0));
+    VERIFY_IS_EQUAL(reinterpret_cast<std::uintptr_t>(tmp.data()), std::uintptr_t(0));
   }
 
   // verify that the content did not change
@@ -58,24 +53,24 @@ void rvalue_transpositions(Index rows)
 
   Eigen::internal::set_is_malloc_allowed(false); // moving from an rvalue reference shall never allocate
 
-  UIntPtr t0_address = reinterpret_cast<UIntPtr>(t0.indices().data());
+  std::uintptr_t t0_address = reinterpret_cast<std::uintptr_t>(t0.indices().data());
 
   // Move constructors:
   TranspositionsType t1 = std::move(t0);
-  UIntPtr t1_address = reinterpret_cast<UIntPtr>(t1.indices().data());
+  std::uintptr_t t1_address = reinterpret_cast<std::uintptr_t>(t1.indices().data());
   VERIFY_IS_EQUAL(t0_address, t1_address);
   // t0 must be de-allocated:
   VERIFY_IS_EQUAL(t0.size(), 0);
-  VERIFY_IS_EQUAL(reinterpret_cast<UIntPtr>(t0.indices().data()), UIntPtr(0));
+  VERIFY_IS_EQUAL(reinterpret_cast<std::uintptr_t>(t0.indices().data()), std::uintptr_t(0));
 
 
   // Move assignment:
   t0 = std::move(t1);
-  t0_address = reinterpret_cast<UIntPtr>(t0.indices().data());
+  t0_address = reinterpret_cast<std::uintptr_t>(t0.indices().data());
   VERIFY_IS_EQUAL(t0_address, t1_address);
   // t1 must be de-allocated:
   VERIFY_IS_EQUAL(t1.size(), 0);
-  VERIFY_IS_EQUAL(reinterpret_cast<UIntPtr>(t1.indices().data()), UIntPtr(0));
+  VERIFY_IS_EQUAL(reinterpret_cast<std::uintptr_t>(t1.indices().data()), std::uintptr_t(0));
 
   Eigen::internal::set_is_malloc_allowed(true);
 }
@@ -114,14 +109,6 @@ void rvalue_move(const MatrixType& m)
     g_dst = std::move(g_src);
     VERIFY_IS_EQUAL(g_dst, m);
 }
-#else
-template <typename MatrixType>
-void rvalue_copyassign(const MatrixType&) {}
-template<typename TranspositionsType>
-void rvalue_transpositions(Index) {}
-template <typename MatrixType>
-void rvalue_move(const MatrixType&) {}
-#endif
 
 EIGEN_DECLARE_TEST(rvalue_types)
 {
@@ -148,10 +135,8 @@ EIGEN_DECLARE_TEST(rvalue_types)
     CALL_SUBTEST_4((rvalue_transpositions<Transpositions<Dynamic, Dynamic, int> >(internal::random<int>(1,EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_4((rvalue_transpositions<Transpositions<Dynamic, Dynamic, Index> >(internal::random<int>(1,EIGEN_TEST_MAX_SIZE))));
 
-#if EIGEN_HAS_CXX11
     CALL_SUBTEST_5(rvalue_move(Eigen::Matrix<MovableScalar<float>,1,3>::Random().eval()));
     CALL_SUBTEST_5(rvalue_move(Eigen::Matrix<SafeScalar<float>,1,3>::Random().eval()));
     CALL_SUBTEST_5(rvalue_move(Eigen::Matrix<SafeScalar<float>,Eigen::Dynamic,Eigen::Dynamic>::Random(1,3).eval()));
-#endif
   }
 }

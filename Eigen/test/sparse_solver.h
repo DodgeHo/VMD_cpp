@@ -88,7 +88,7 @@ void check_sparse_solving(Solver& solver, const typename Solver::MatrixType& A, 
     
     x.setZero();
     // test with Map
-    MappedSparseMatrix<Scalar,Mat::Options,StorageIndex> Am(A.rows(), A.cols(), A.nonZeros(), const_cast<StorageIndex*>(A.outerIndexPtr()), const_cast<StorageIndex*>(A.innerIndexPtr()), const_cast<Scalar*>(A.valuePtr()));
+    Map<SparseMatrix<Scalar,Mat::Options,StorageIndex>> Am(A.rows(), A.cols(), A.nonZeros(), const_cast<StorageIndex*>(A.outerIndexPtr()), const_cast<StorageIndex*>(A.innerIndexPtr()), const_cast<Scalar*>(A.valuePtr()));
     solver.compute(Am);
     VERIFY(solver.info() == Success && "factorization failed when using Map");
     DenseRhs dx(refX);
@@ -99,6 +99,13 @@ void check_sparse_solving(Solver& solver, const typename Solver::MatrixType& A, 
     VERIFY(solver.info() == Success && "solving failed when using Map");
     VERIFY(oldb.isApprox(bm) && "sparse solver testing: the rhs should not be modified!");
     VERIFY(xm.isApprox(refX,test_precision<Scalar>()));
+    
+    // Test with a Map and non-unit stride.
+    Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic> out(2*xm.rows(), 2*xm.cols());
+    out.setZero();
+    Eigen::Map<DenseRhs, 0, Stride<Eigen::Dynamic, 2>> outm(out.data(), xm.rows(), xm.cols(), Stride<Eigen::Dynamic, 2>(2 * xm.rows(), 2));
+    outm = solver.solve(bm);
+    VERIFY(outm.isApprox(refX,test_precision<Scalar>()));
   }
   
   // if not too large, do some extra check:
@@ -217,7 +224,7 @@ void check_sparse_solving(Eigen::SparseLU<Eigen::SparseMatrix<Scalar> >& solver,
 
     x1.setZero();
     // test with Map
-    MappedSparseMatrix<Scalar,Mat::Options,StorageIndex> Am(A.rows(), A.cols(), A.nonZeros(), const_cast<StorageIndex*>(A.outerIndexPtr()), const_cast<StorageIndex*>(A.innerIndexPtr()), const_cast<Scalar*>(A.valuePtr()));
+    Map<SparseMatrix<Scalar,Mat::Options,StorageIndex> > Am(A.rows(), A.cols(), A.nonZeros(), const_cast<StorageIndex*>(A.outerIndexPtr()), const_cast<StorageIndex*>(A.innerIndexPtr()), const_cast<Scalar*>(A.valuePtr()));
     solver.compute(Am);
     VERIFY(solver.info() == Success && "factorization failed when using Map");
     DenseRhs dx(refX1);
@@ -350,7 +357,7 @@ int generate_sparse_spd_problem(Solver& , typename Solver::MatrixType& A, typena
   typedef Matrix<Scalar,Dynamic,Dynamic> DenseMatrix;
 
   int size = internal::random<int>(1,maxSize);
-  double density = (std::max)(8./(size*size), 0.01);
+  double density = (std::max)(8./static_cast<double>(size*size), 0.01);
 
   Mat M(size, size);
   DenseMatrix dM(size, size);
@@ -419,7 +426,7 @@ template<typename Solver> void check_sparse_spd_solving(Solver& solver, int maxS
 
     // generate the right hand sides
     int rhsCols = internal::random<int>(1,16);
-    double density = (std::max)(8./(size*rhsCols), 0.1);
+    double density = (std::max)(8./static_cast<double>(size*rhsCols), 0.1);
     SpMat B(size,rhsCols);
     DenseVector b = DenseVector::Random(size);
     DenseMatrix dB(size,rhsCols);
@@ -510,7 +517,7 @@ Index generate_sparse_square_problem(Solver&, typename Solver::MatrixType& A, De
   typedef typename Mat::Scalar Scalar;
 
   Index size = internal::random<int>(1,maxSize);
-  double density = (std::max)(8./(size*size), 0.01);
+  double density = (std::max)(8./static_cast<double>(size*size), 0.01);
   
   A.resize(size,size);
   dA.resize(size,size);
@@ -551,7 +558,7 @@ template<typename Solver> void check_sparse_square_solving(Solver& solver, int m
     DenseVector b = DenseVector::Random(size);
     DenseMatrix dB(size,rhsCols);
     SpMat B(size,rhsCols);
-    double density = (std::max)(8./(size*rhsCols), 0.1);
+    double density = (std::max)(8./double(size*rhsCols), 0.1);
     initSparse<Scalar>(density, dB, B, ForceNonZeroDiag);
     B.makeCompressed();
     SpVec c = B.col(0);

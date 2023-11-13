@@ -13,6 +13,9 @@
 #ifndef EIGEN_LEVENBERGMARQUARDT__H
 #define EIGEN_LEVENBERGMARQUARDT__H
 
+// IWYU pragma: private
+#include "./InternalHeaderCheck.h"
+
 namespace Eigen { 
 
 namespace LevenbergMarquardtSpace {

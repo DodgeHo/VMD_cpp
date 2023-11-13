@@ -248,6 +248,7 @@ EIGEN_DECLARE_TEST(cxx11_tensor_reverse_sycl) {
 #ifdef EIGEN_SYCL_DOUBLE_SUPPORT
     CALL_SUBTEST_4(sycl_reverse_test_per_device<double>(device));
 #endif
-    CALL_SUBTEST_5(sycl_reverse_test_per_device<float>(device));
+    CALL_SUBTEST_5(sycl_reverse_test_per_device<half>(device));
+    CALL_SUBTEST_6(sycl_reverse_test_per_device<float>(device));
   }
 }

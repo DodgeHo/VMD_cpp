@@ -7,6 +7,9 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+// IWYU pragma: private
+#include "./InternalHeaderCheck.h"
+
 namespace Eigen { 
 
 namespace internal {
@@ -14,10 +17,10 @@ namespace internal {
   // This FFT implementation was derived from kissfft http:sourceforge.net/projects/kissfft
   // Copyright 2003-2009 Mark Borgerding
 
-template <typename _Scalar>
+template <typename Scalar_>
 struct kiss_cpx_fft
 {
-  typedef _Scalar Scalar;
+  typedef Scalar_ Scalar;
   typedef std::complex<Scalar> Complex;
   std::vector<Complex> m_twiddles;
   std::vector<int> m_stageRadix;
@@ -90,9 +93,9 @@ struct kiss_cpx_fft
     }while(n>1);
   }
 
-  template <typename _Src>
+  template <typename Src_>
     inline
-    void work( int stage,Complex * xout, const _Src * xin, size_t fstride,size_t in_stride)
+    void work( int stage,Complex * xout, const Src_ * xin, size_t fstride,size_t in_stride)
     {
       int p = m_stageRadix[stage];
       int m = m_stageRemainder[stage];
@@ -292,10 +295,10 @@ struct kiss_cpx_fft
     }
 };
 
-template <typename _Scalar>
+template <typename Scalar_>
 struct kissfft_impl
 {
-  typedef _Scalar Scalar;
+  typedef Scalar_ Scalar;
   typedef std::complex<Scalar> Complex;
 
   void clear() 

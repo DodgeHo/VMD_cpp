@@ -10,6 +10,9 @@
 #ifndef EIGEN_CXX11_TENSOR_TENSOR_CONTRACTION_MAPPER_H
 #define EIGEN_CXX11_TENSOR_TENSOR_CONTRACTION_MAPPER_H
 
+// IWYU pragma: private
+#include "./InternalHeaderCheck.h"
+
 namespace Eigen {
 
 namespace internal {
@@ -59,13 +62,6 @@ struct CoeffLoader {
     return m_tensor.template packet<LoadMode>(index);
   }
 
-  #ifdef EIGEN_USE_SYCL
-  // The placeholder accessors require to be bound to a command group handler for SYCL
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void bind(cl::sycl::handler &cgh) const {
-    m_tensor.bind(cgh);
-  }
-  #endif
-
  private:
   const Tensor m_tensor;
 };
@@ -95,12 +91,6 @@ struct CoeffLoader<Tensor, true, MakePointer_> {
     return internal::ploadt_ro<typename Tensor::PacketReturnType, LoadMode>(m_data + index);
   }
 
-  #ifdef EIGEN_USE_SYCL
-  // The placeholder accessors require to be bound to a command group handler for SYCL
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void bind(cl::sycl::handler &cgh) const {
-    m_data.bind(cgh);
-  }
-  #endif
  private:
   typedef typename Tensor::Scalar Scalar;
 
@@ -248,13 +238,6 @@ class SimpleTensorContractionMapper {
     return ((side == Lhs) && inner_dim_contiguous && array_size<contract_t>::value > 0) ? m_contract_strides[0] : 1;
   }
 
-  #ifdef EIGEN_USE_SYCL
-  // The placeholder accessors require to be bound to a command group handler for SYCL
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void bind(cl::sycl::handler &cgh) const {
-    m_tensor.bind(cgh);
-  }
-  #endif
-
   const CoeffLoader<Tensor, Tensor::RawAccess, MakePointer_>& tensor() const {
     return m_tensor;
   }
@@ -294,7 +277,7 @@ class BaseTensorContractionMapper : public SimpleTensorContractionMapper<Scalar,
 
   template <typename PacketT,int AlignmentType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-  typename internal::enable_if<internal::unpacket_traits<PacketT>::size==packet_size,PacketT>::type
+  std::enable_if_t<internal::unpacket_traits<PacketT>::size==packet_size,PacketT>
   load(Index i, Index j) const
   {
     // whole method makes column major assumption
@@ -340,7 +323,7 @@ class BaseTensorContractionMapper : public SimpleTensorContractionMapper<Scalar,
 
   template <typename PacketT,int AlignmentType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-  typename internal::enable_if<internal::unpacket_traits<PacketT>::size!=packet_size,PacketT>::type
+  std::enable_if_t<internal::unpacket_traits<PacketT>::size!=packet_size,PacketT>
   load(Index i, Index j) const
   {
     const Index requested_packet_size = internal::unpacket_traits<PacketT>::size;
@@ -414,6 +397,7 @@ class TensorContractionSubMapper {
   typedef BaseTensorContractionMapper<Scalar, Index, side, Tensor, nocontract_t, contract_t, packet_size, inner_dim_contiguous, inner_dim_reordered, Alignment, MakePointer_> ParentMapper;
   typedef TensorContractionSubMapper<Scalar, Index, side, Tensor, nocontract_t, contract_t, packet_size, inner_dim_contiguous, inner_dim_reordered, Alignment, MakePointer_> Self;
   typedef Self LinearMapper;
+  typedef Self SubMapper;
 
   enum {
     // We can use direct offsets iff the parent mapper supports then and we can compute the strides.
@@ -460,6 +444,14 @@ class TensorContractionSubMapper {
     return m_base_mapper.template loadPacket<PacketT,Alignment>(i + m_vert_offset, j + m_horiz_offset);
   }
 
+  template <typename PacketT>
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketT loadPacketPartial(Index i, Index j, Index, Index = 0) const {
+    if (UseDirectOffsets) {
+      return m_base_mapper.template loadPacket<PacketT,Alignment>(i, j);
+    }
+    return m_base_mapper.template loadPacket<PacketT,Alignment>(i + m_vert_offset, j + m_horiz_offset);
+  }
+
   template <typename PacketT, int AlignmentType>
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketT loadPacket(Index i, Index j) const {
     if (UseDirectOffsets) {
@@ -483,6 +475,15 @@ class TensorContractionSubMapper {
     return LinearMapper(m_base_mapper, i + m_vert_offset, j + m_horiz_offset);
   }
 
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE SubMapper getSubMapper(Index i, Index j) const {
+    if (UseDirectOffsets) {
+      return SubMapper(m_base_mapper, i, j);
+    }
+    return SubMapper(m_base_mapper, i + m_vert_offset, j + m_horiz_offset);
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE const Index stride() const { return m_base_mapper.stride(); }
+
   template <typename PacketT, int AlignmentType>
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketT load(Index i) const {
     EIGEN_STATIC_ASSERT((internal::is_same<PacketT, PacketT>::value), YOU_MADE_A_PROGRAMMING_MISTAKE);
@@ -497,13 +498,6 @@ class TensorContractionSubMapper {
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool aligned(Index) const {
     return false;
   }
-
-  #ifdef EIGEN_USE_SYCL
-  // The placeholder accessors require to be bound to a command group handler for SYCL
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void bind(cl::sycl::handler &cgh) const {
-    m_base_mapper.bind(cgh);
-  }
-  #endif
 
   const ParentMapper& base_mapper() const { return m_base_mapper; }
   Index vert_offset() const { return m_vert_offset; }
@@ -529,6 +523,7 @@ class TensorContractionInputMapper
   typedef BaseTensorContractionMapper<Scalar, Index, side, Tensor, nocontract_t, contract_t, packet_size, inner_dim_contiguous, inner_dim_reordered, Alignment, MakePointer_> Base;
   typedef TensorContractionSubMapper<Scalar, Index, side, Tensor, nocontract_t, contract_t, packet_size, inner_dim_contiguous, inner_dim_reordered, Alignment, MakePointer_> SubMapper;
   typedef SubMapper VectorMapper;
+  typedef SubMapper LinearMapper;
 
   EIGEN_DEVICE_FUNC TensorContractionInputMapper(const Tensor& tensor,
                                const nocontract_t& nocontract_strides,
@@ -540,6 +535,10 @@ class TensorContractionInputMapper
   EIGEN_DEVICE_FUNC
   EIGEN_STRONG_INLINE SubMapper getSubMapper(Index i, Index j) const {
     return SubMapper(*this, i, j);
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE LinearMapper getLinearMapper(Index i, Index j) const {
+    return LinearMapper(*this, i, j);
   }
 
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE VectorMapper getVectorMapper(Index i, Index j) const {

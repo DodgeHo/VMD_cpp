@@ -10,10 +10,7 @@
 #define EIGEN_KRONECKER_PRODUCT_MODULE_H
 
 #include "../../Eigen/Core"
-
-#include "../../Eigen/src/Core/util/DisableStupidWarnings.h"
-
-#include "../../Eigen/src/SparseCore/SparseUtil.h"
+#include "../../Eigen/SparseCore"
 
 namespace Eigen {
 
@@ -29,7 +26,9 @@ namespace Eigen {
 
 } // namespace Eigen
 
+// IWYU pragma: begin_exports
 #include "src/KroneckerProduct/KroneckerTensorProduct.h"
+// IWYU pragma: end_exports
 
 #include "../../Eigen/src/Core/util/ReenableStupidWarnings.h"
 

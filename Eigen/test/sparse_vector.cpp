@@ -15,6 +15,7 @@ template<typename Scalar,typename StorageIndex> void sparse_vector(int rows, int
   double densityVec = (std::max)(8./(rows), 0.1);
   typedef Matrix<Scalar,Dynamic,Dynamic> DenseMatrix;
   typedef Matrix<Scalar,Dynamic,1> DenseVector;
+  typedef Matrix<DenseIndex,Dynamic,1> DenseIndexVector;
   typedef SparseVector<Scalar,0,StorageIndex> SparseVectorType;
   typedef SparseMatrix<Scalar,0,StorageIndex> SparseMatrixType;
   Scalar eps = 1e-6;
@@ -47,8 +48,8 @@ template<typename Scalar,typename StorageIndex> void sparse_vector(int rows, int
     for (typename SparseVectorType::InnerIterator it(v1); it; ++it,++j)
     {
       VERIFY(nonzerocoords[j]==it.index());
-      VERIFY(it.value()==v1.coeff(it.index()));
-      VERIFY(it.value()==refV1.coeff(it.index()));
+      VERIFY_IS_EQUAL(it.value(), v1.coeff(it.index()));
+      VERIFY_IS_EQUAL(it.value(), refV1.coeff(it.index()));
     }
   }
   VERIFY_IS_APPROX(v1, refV1);
@@ -111,7 +112,7 @@ template<typename Scalar,typename StorageIndex> void sparse_vector(int rows, int
   // check copy to dense vector with transpose
   refV3.resize(0);
   VERIFY_IS_APPROX(refV3 = v1.transpose(),v1.toDense()); 
-  VERIFY_IS_APPROX(DenseVector(v1),v1.toDense()); 
+  VERIFY_IS_APPROX(DenseVector(v1),v1.toDense());
 
   // test conservative resize
   {
@@ -143,6 +144,60 @@ template<typename Scalar,typename StorageIndex> void sparse_vector(int rows, int
     }
   }
 
+  // test sort
+  if(rows > 1)
+  {
+    SparseVectorType vec1(rows);
+    DenseVector refVec1 = DenseVector::Zero(rows);
+    DenseIndexVector innerIndices(rows);
+    innerIndices.setLinSpaced(0, rows - 1);
+    std::random_device rd;
+    std::mt19937 g(rd());
+    std::shuffle(innerIndices.begin(), innerIndices.end(), g);
+    Index nz = internal::random<Index>(2, rows / 2);
+    for (Index k = 0; k < nz; k++)
+    {
+        Index i = innerIndices[k];
+        Scalar val = internal::random<Scalar>();
+        refVec1.coeffRef(i) = val;
+        vec1.insert(i) = val;
+    }
+
+    vec1.template sortInnerIndices<std::greater<>>();
+    VERIFY_IS_APPROX(vec1, refVec1);
+    VERIFY_IS_EQUAL(vec1.template innerIndicesAreSorted<std::greater<>>(), 1);
+    VERIFY_IS_EQUAL(vec1.template innerIndicesAreSorted<std::less<>>(), 0);
+    vec1.template sortInnerIndices<std::less<>>();
+    VERIFY_IS_APPROX(vec1, refVec1);
+    VERIFY_IS_EQUAL(vec1.template innerIndicesAreSorted<std::greater<>>(), 0);
+    VERIFY_IS_EQUAL(vec1.template innerIndicesAreSorted<std::less<>>(), 1);
+  }
+
+}
+void test_pruning() {
+    using SparseVectorType = SparseVector<double, 0, int>;
+
+    SparseVectorType vec;
+    auto init_vec = [&](){;
+        vec.resize(10);
+        vec.insert(3) = 0.1;
+        vec.insert(5) = 1.0;
+        vec.insert(8) = -0.1;
+        vec.insert(9) = -0.2;
+    };
+    init_vec();
+
+    VERIFY_IS_EQUAL(vec.nonZeros(), 4);
+    VERIFY_IS_EQUAL(vec.prune(0.1, 1.0), 2);
+    VERIFY_IS_EQUAL(vec.nonZeros(), 2);
+    VERIFY_IS_EQUAL(vec.coeff(5), 1.0);
+    VERIFY_IS_EQUAL(vec.coeff(9), -0.2);
+
+    init_vec();
+    VERIFY_IS_EQUAL(vec.prune([](double v) { return v >= 0; }), 2);
+    VERIFY_IS_EQUAL(vec.nonZeros(), 2);
+    VERIFY_IS_EQUAL(vec.coeff(3), 0.1);
+    VERIFY_IS_EQUAL(vec.coeff(5), 1.0);
 }
 
 EIGEN_DECLARE_TEST(sparse_vector)
@@ -159,5 +214,7 @@ EIGEN_DECLARE_TEST(sparse_vector)
     CALL_SUBTEST_1(( sparse_vector<double,long int>(r, c) ));
     CALL_SUBTEST_1(( sparse_vector<double,short>(r, c) ));
   }
+
+  CALL_SUBTEST_1(test_pruning());
 }
 

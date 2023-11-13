@@ -17,18 +17,48 @@ bool areNotApprox(const MatrixBase<Derived1>& m1, const MatrixBase<Derived2>& m2
                           * (std::max)(m1.cwiseAbs2().maxCoeff(), m2.cwiseAbs2().maxCoeff()));
 }
 
+// Allow specifying tolerance for verifying error.
+template<typename Type1, typename Type2, typename Tol>
+inline bool verifyIsApprox(const Type1& a, const Type2& b, Tol tol)
+{
+  bool ret = a.isApprox(b, tol);
+  if(!ret)
+  {
+    std::cerr << "Difference too large wrt tolerance " << tol  << ", relative error is: " << test_relative_error(a,b) << std::endl;
+  }
+  return ret;
+}
+
+
+template <typename LhsType, typename RhsType>
+std::enable_if_t<RhsType::SizeAtCompileTime==Dynamic,void>
+check_mismatched_product(LhsType& lhs, const RhsType& rhs) {
+  VERIFY_RAISES_ASSERT(lhs = rhs*rhs);
+}
+
+template <typename LhsType, typename RhsType>
+std::enable_if_t<RhsType::SizeAtCompileTime!=Dynamic,void>
+check_mismatched_product(LhsType& /*unused*/, const RhsType& /*unused*/) {
+}
+
 template<typename MatrixType> void product(const MatrixType& m)
 {
   /* this test covers the following files:
      Identity.h Product.h
   */
   typedef typename MatrixType::Scalar Scalar;
+  typedef typename MatrixType::RealScalar RealScalar;
   typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> RowVectorType;
   typedef Matrix<Scalar, MatrixType::ColsAtCompileTime, 1> ColVectorType;
   typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime> RowSquareMatrixType;
   typedef Matrix<Scalar, MatrixType::ColsAtCompileTime, MatrixType::ColsAtCompileTime> ColSquareMatrixType;
   typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime,
                          MatrixType::Flags&RowMajorBit?ColMajor:RowMajor> OtherMajorMatrixType;
+
+  // Wwe want a tighter epsilon for not-approx tests.  Otherwise, for certain
+  // low-precision types (e.g. bfloat16), the bound ends up being relatively large
+  // (e.g. 0.12), causing flaky tests.
+  RealScalar not_approx_epsilon = RealScalar(0.1) * NumTraits<RealScalar>::dummy_precision();
 
   Index rows = m.rows();
   Index cols = m.cols();
@@ -57,7 +87,11 @@ template<typename MatrixType> void product(const MatrixType& m)
 
   // begin testing Product.h: only associativity for now
   // (we use Transpose.h but this doesn't count as a test for it)
-  VERIFY_IS_APPROX((m1*m1.transpose())*m2,  m1*(m1.transpose()*m2));
+  {
+    // Increase tolerance, since coefficients here can get relatively large.
+    RealScalar tol = RealScalar(2) * get_test_precision(m1);
+    VERIFY(verifyIsApprox((m1*m1.transpose())*m2,  m1*(m1.transpose()*m2), tol));
+  }
   m3 = m1;
   m3 *= m1.transpose() * m2;
   VERIFY_IS_APPROX(m3,                      m1 * (m1.transpose()*m2));
@@ -77,14 +111,15 @@ template<typename MatrixType> void product(const MatrixType& m)
   // again, test operator() to check const-qualification
   VERIFY_IS_APPROX(MatrixType::Identity(rows, cols)(r,c), static_cast<Scalar>(r==c));
 
-  if (rows!=cols)
-     VERIFY_RAISES_ASSERT(m3 = m1*m1);
+  if (rows!=cols) {
+    check_mismatched_product(m3, m1);
+  }
 
   // test the previous tests were not screwed up because operator* returns 0
   // (we use the more accurate default epsilon)
   if (!NumTraits<Scalar>::IsInteger && (std::min)(rows,cols)>1)
   {
-    VERIFY(areNotApprox(m1.transpose()*m2,m2.transpose()*m1));
+    VERIFY(areNotApprox(m1.transpose()*m2,m2.transpose()*m1, not_approx_epsilon));
   }
 
   // test optimized operator+= path
@@ -93,7 +128,7 @@ template<typename MatrixType> void product(const MatrixType& m)
   VERIFY_IS_APPROX(res, square + m1 * m2.transpose());
   if (!NumTraits<Scalar>::IsInteger && (std::min)(rows,cols)>1)
   {
-    VERIFY(areNotApprox(res,square + m2 * m1.transpose()));
+    VERIFY(areNotApprox(res,square + m2 * m1.transpose(), not_approx_epsilon));
   }
   vcres = vc2;
   vcres.noalias() += m1.transpose() * v1;
@@ -105,7 +140,7 @@ template<typename MatrixType> void product(const MatrixType& m)
   VERIFY_IS_APPROX(res, square - (m1 * m2.transpose()));
   if (!NumTraits<Scalar>::IsInteger && (std::min)(rows,cols)>1)
   {
-    VERIFY(areNotApprox(res,square - m2 * m1.transpose()));
+    VERIFY(areNotApprox(res,square - m2 * m1.transpose(), not_approx_epsilon));
   }
   vcres = vc2;
   vcres.noalias() -= m1.transpose() * v1;
@@ -126,7 +161,7 @@ template<typename MatrixType> void product(const MatrixType& m)
   res.noalias() = square + m1 * m2.transpose();
   VERIFY_IS_APPROX(res, square + m1 * m2.transpose());
   res.noalias() += square + m1 * m2.transpose();
-  VERIFY_IS_APPROX(res, 2*(square + m1 * m2.transpose()));
+  VERIFY_IS_APPROX(res, Scalar(2)*(square + m1 * m2.transpose()));
   res.noalias() -= square + m1 * m2.transpose();
   VERIFY_IS_APPROX(res, square + m1 * m2.transpose());
 
@@ -134,7 +169,7 @@ template<typename MatrixType> void product(const MatrixType& m)
   res.noalias() = square - m1 * m2.transpose();
   VERIFY_IS_APPROX(res, square - m1 * m2.transpose());
   res.noalias() += square - m1 * m2.transpose();
-  VERIFY_IS_APPROX(res, 2*(square - m1 * m2.transpose()));
+  VERIFY_IS_APPROX(res, Scalar(2)*(square - m1 * m2.transpose()));
   res.noalias() -= square - m1 * m2.transpose();
   VERIFY_IS_APPROX(res, square - m1 * m2.transpose());
 
@@ -157,7 +192,7 @@ template<typename MatrixType> void product(const MatrixType& m)
   VERIFY_IS_APPROX(res2, square2 + m1.transpose() * m2);
   if (!NumTraits<Scalar>::IsInteger && (std::min)(rows,cols)>1)
   {
-    VERIFY(areNotApprox(res2,square2 + m2.transpose() * m1));
+    VERIFY(areNotApprox(res2,square2 + m2.transpose() * m1, not_approx_epsilon));
   }
 
   VERIFY_IS_APPROX(res.col(r).noalias() = square.adjoint() * square.col(r), (square.adjoint() * square.col(r)).eval());
@@ -235,10 +270,12 @@ template<typename MatrixType> void product(const MatrixType& m)
 
   // regression for blas_trais
   {
-    VERIFY_IS_APPROX(square * (square*square).transpose(), square * square.transpose() * square.transpose());
-    VERIFY_IS_APPROX(square * (-(square*square)), -square * square * square);
-    VERIFY_IS_APPROX(square * (s1*(square*square)), s1 * square * square * square);
-    VERIFY_IS_APPROX(square * (square*square).conjugate(), square * square.conjugate() * square.conjugate());
+    // Increase test tolerance, since coefficients can get relatively large.
+    RealScalar tol = RealScalar(2) * get_test_precision(square);
+    VERIFY(verifyIsApprox(square * (square*square).transpose(), square * square.transpose() * square.transpose(), tol));
+    VERIFY(verifyIsApprox(square * (-(square*square)), -square * square * square, tol));
+    VERIFY(verifyIsApprox(square * (s1*(square*square)), s1 * square * square * square, tol));
+    VERIFY(verifyIsApprox(square * (square*square).conjugate(), square * square.conjugate() * square.conjugate(), tol));
   }
 
   // destination with a non-default inner-stride
