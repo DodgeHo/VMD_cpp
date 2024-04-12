@@ -21,9 +21,10 @@ Updated 2023-11-13: This VMD runs too slow. I tried to use OpenMP again and agai
 作者：Dodge asdsay@gmail.com 
 更新日期：2023-11-13
 
-VMD（变分模态分解）是一种信号处理算法，可以将输入信号分解为不同带限的内禀模态函数（IMFs）。本项目VMD_cpp是参考于[其在MATLAB中的实现](https://ww2.mathworks.cn/help/wavelet/ref/vmd.html)。在项目中，使用eigen3来实现C++中的VMD，从而实现无须MATLAB的计算。详细的输入输出，可以查看[VMD_Utils.cpp](https://github.com/DodgeHo/VMD_cpp/blob/master/VMD_Utils.cpp)文件中的VMD函数。
+VMD（变分模态分解）是一种信号处理算法，可以将输入信号分解为不同带限的内禀模态函数（IMFs）。
+本项目**VMD_cpp** 是参考于[其在MATLAB中的实现](https://ww2.mathworks.cn/help/wavelet/ref/vmd.html)。在项目中，借助eigen3来实现C++中的VMD，从而无须MATLAB的计算。详细的输入输出，可以查看[VMD_Utils.cpp](https://github.com/DodgeHo/VMD_cpp/blob/master/VMD_Utils.cpp)文件中的 **VMD**函数。
 
-本项目用MSBuild编写的，可在Visual Studio 2022、MSVC或CMAKE/GCC中运行，可以使用sln项目文件或CMakeList.txt，都能使用。
+本项目用MSBuild编写，也可在Visual Studio 2022、MSVC或CMAKE/GCC中运行，sln项目文件或CMakeList.txt都能用。
 
 如果需要描述变分模态分解的文档，可参阅原始论文[Variational Mode Decomposition](https://ieeexplore.ieee.org/document/6655981)。
 
