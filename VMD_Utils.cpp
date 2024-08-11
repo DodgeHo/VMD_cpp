@@ -63,8 +63,8 @@ void VMD
 	copy(f_hat.begin() + T / 2, f_hat.end(), f_hat_plus.begin() + T / 2);
 
 	// Calculate Matrix-Column in advance
-	MatrixXcd f_hat_plus_Xcd = vector_to_MatrixXcd_in_col(f_hat_plus);
-	MatrixXcd freqs_Xcd = vector_to_MatrixXcd_in_col(freqs);
+	MatrixXcd f_hat_plus_Xcd = Eigen::Map<Eigen::MatrixXcd>(f_hat_plus.data(), 1, int(f_hat_plus.size()));
+	MatrixXcd freqs_Xcd = Eigen::Map<Eigen::MatrixXcd>(freqs.data(), 1, int(freqs.size()));
 
 	// Matrix keeping track of every iterant // could be discarded for mem
 	Matrix3DXd u_hat_plus(N, MatrixXcd::Zero(K, T));
@@ -117,7 +117,7 @@ void VMD
 		MatrixXcd Dividend_vec = f_hat_plus_Xcd - sum_uk - (lambda_hat.row(n - 1) / 2.0);
 		MatrixXcd Divisor_vec = (1 + alpha *
 			((freqs_Xcd.array() - omega_plus(n - 1, k))).array().square());
-		u_hat_plus[n].row(k) = Dividend_vec.cwiseQuotient(Divisor_vec);
+		u_hat_plus[n].row(k).noalias() = Dividend_vec.cwiseQuotient(Divisor_vec);
 
 		//update first omega if not held at 0
 		if (!DC) {
@@ -145,7 +145,7 @@ void VMD
 			MatrixXcd Divisor_vec = (1 + alpha *
 				((freqs_Xcd.array() - omega_plus(n - 1, k))).array().square());
 
-			u_hat_plus[n].row(k) = Dividend_vec.cwiseQuotient(Divisor_vec);
+			u_hat_plus[n].row(k).noalias() = Dividend_vec.cwiseQuotient(Divisor_vec);
 
 			//center frequencies
 			std::complex<double> Dividend{ 0,0 }, Divisor{ 0, 0 }, Addend{ 0, 0 }, Addend_sqrt{ 0, 0 };
@@ -158,7 +158,7 @@ void VMD
 			omega_plus(n, k) = Dividend / Divisor;
 		}
 
-		lambda_hat.row(n) = lambda_hat.row(n - 1) + tau * (sum(u_hat_plus, n) - f_hat_plus_Xcd);
+		lambda_hat.row(n).noalias() = lambda_hat.row(n - 1) + tau * (u_hat_plus[n].rowwise().sum() - f_hat_plus_Xcd);
 		n++;
 
 		std::complex<double> acc{ eps, 0 };
@@ -243,13 +243,6 @@ vectord omega_init_method2(int K, const double fs) {
 	return res;
 }
 
-
-MatrixXcd vector_to_MatrixXcd_in_col(vectorcd& Input) {
-	std::complex<double>* dataPtr = &Input[0];
-	Eigen::MatrixXcd copiedMatrix = Eigen::Map<Eigen::MatrixXcd>(dataPtr, 1, int(Input.size()));
-	return copiedMatrix;
-}
-
 vectorcd ExtractColFromMatrixXcd(MatrixXcd& Input, const int ColIdx, const int RowNum) {
 	vectorcd Output(RowNum, 0);
 	for (int i = 0; i < RowNum; ++i)
@@ -263,11 +256,6 @@ vectorcd ExtractRowFromMatrixXd(MatrixXd& Input, const int RowIdx, const int Col
 	for (int i = 0; i < ColNum; ++i)
 		Output[i] = Input(RowIdx, i);
 	return Output;
-}
-
-MatrixXcd sum(Matrix3DXd& u_hat_plus, const int n) {
-	MatrixXcd cov = u_hat_plus[n];
-	return cov.colwise().sum();
 }
 
 #pragma endregion

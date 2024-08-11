@@ -1,6 +1,7 @@
 ﻿#include "VMD.h"
 #include <fstream>
 #include <iostream>
+#include <thread>
 using namespace Eigen;
 using namespace std;
 /*
@@ -37,6 +38,7 @@ int main() {
 	const double alpha = 50.0, tau = 0, tol = 1e-7, eps = 2.2204e-16;
 	const int K = 8, DC = 0, init = 1;
 	const static double CSVFormat(4);
+	Eigen::setNbThreads(std::thread::hardware_concurrency()); // Set the numbers of threads that Eigen uses
 
 	// Example 1: If you want to get the full results as a 2D matrix of VMD. 	
 	MatrixXd u, omega;
@@ -46,7 +48,7 @@ int main() {
 	//Example 2: If you only wants to get sum result of the first n mode of signals.
 	const double hp_cut_off = 1, lp_cut_off = 15; // Hz
 	const double Fs = 50;
-	/* Same as Exmaple 1
+	/* Same as Example 1
 	MatrixXd u, omega;
 	MatrixXcd u_hat;
 	VMD(u, u_hat, omega, signal, alpha, tau, K, DC, init, tol, eps);*/

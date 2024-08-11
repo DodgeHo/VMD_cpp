@@ -19,7 +19,5 @@ void VMD(MatrixXd& u, MatrixXcd& u_hat, MatrixXd& omega,
 
 vectorcd circshift(vectorcd& data, int offset);
 vectord omega_init_method2(int K, const double fs);
-MatrixXcd vector_to_MatrixXcd_in_col(vectorcd& Input);
 vectorcd ExtractColFromMatrixXcd(MatrixXcd& Input, const int k, const int T);
 vectorcd ExtractRowFromMatrixXd(MatrixXd& Input, const int k, const int T);
-MatrixXcd sum(Matrix3DXd& u_hat_plus, const int n);
