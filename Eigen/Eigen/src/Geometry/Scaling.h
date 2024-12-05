@@ -10,9 +10,6 @@
 #ifndef EIGEN_SCALING_H
 #define EIGEN_SCALING_H
 
-// IWYU pragma: private
-#include "./InternalHeaderCheck.h"
-
 namespace Eigen { 
 
 /** \geometry_module \ingroup Geometry_Module
@@ -21,7 +18,7 @@ namespace Eigen {
   *
   * \brief Represents a generic uniform scaling transformation
   *
-  * \tparam Scalar_ the scalar type, i.e., the type of the coefficients.
+  * \tparam _Scalar the scalar type, i.e., the type of the coefficients.
   *
   * This class represent a uniform scaling transformation. It is the return
   * type of Scaling(Scalar), and most of the time this is the only way it
@@ -48,12 +45,12 @@ namespace internal
   };
 }
 
-template<typename Scalar_>
+template<typename _Scalar>
 class UniformScaling
 {
 public:
   /** the scalar type of the coefficients */
-  typedef Scalar_ Scalar;
+  typedef _Scalar Scalar;
 
 protected:
 
@@ -162,11 +159,6 @@ inline DiagonalMatrix<Scalar,3> Scaling(const Scalar& sx, const Scalar& sy, cons
 template<typename Derived>
 inline const DiagonalWrapper<const Derived> Scaling(const MatrixBase<Derived>& coeffs)
 { return coeffs.asDiagonal(); }
-
-/** Constructs an axis aligned scaling expression from vector \a coeffs when passed as an rvalue reference */
-template<typename Derived>
-inline typename DiagonalWrapper<const Derived>::PlainObject Scaling(MatrixBase<Derived>&& coeffs)
-{ return typename DiagonalWrapper<const Derived>::PlainObject(std::move(coeffs.derived())); }
 
 /** \deprecated */
 typedef DiagonalMatrix<float, 2> AlignedScaling2f;

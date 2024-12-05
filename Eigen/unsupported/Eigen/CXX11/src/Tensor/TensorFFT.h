@@ -10,9 +10,6 @@
 #ifndef EIGEN_CXX11_TENSOR_TENSOR_FFT_H
 #define EIGEN_CXX11_TENSOR_TENSOR_FFT_H
 
-// IWYU pragma: private
-#include "./InternalHeaderCheck.h"
-
 namespace Eigen {
 
 /** \class TensorFFT
@@ -63,13 +60,13 @@ struct traits<TensorFFTOp<FFT, XprType, FFTResultType, FFTDir> > : public traits
   typedef typename NumTraits<typename XprTraits::Scalar>::Real RealScalar;
   typedef typename std::complex<RealScalar> ComplexScalar;
   typedef typename XprTraits::Scalar InputScalar;
-  typedef std::conditional_t<FFTResultType == RealPart || FFTResultType == ImagPart, RealScalar, ComplexScalar> OutputScalar;
+  typedef typename conditional<FFTResultType == RealPart || FFTResultType == ImagPart, RealScalar, ComplexScalar>::type OutputScalar;
   typedef typename XprTraits::StorageKind StorageKind;
   typedef typename XprTraits::Index Index;
   typedef typename XprType::Nested Nested;
-  typedef std::remove_reference_t<Nested> Nested_;
-  static constexpr int NumDimensions = XprTraits::NumDimensions;
-  static constexpr int Layout = XprTraits::Layout;
+  typedef typename remove_reference<Nested>::type _Nested;
+  static const int NumDimensions = XprTraits::NumDimensions;
+  static const int Layout = XprTraits::Layout;
   typedef typename traits<XprType>::PointerType PointerType;
 };
 
@@ -91,7 +88,7 @@ class TensorFFTOp : public TensorBase<TensorFFTOp<FFT, XprType, FFTResultType, F
   typedef typename Eigen::internal::traits<TensorFFTOp>::Scalar Scalar;
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
   typedef typename std::complex<RealScalar> ComplexScalar;
-  typedef std::conditional_t<FFTResultType == RealPart || FFTResultType == ImagPart, RealScalar, ComplexScalar> OutputScalar;
+  typedef typename internal::conditional<FFTResultType == RealPart || FFTResultType == ImagPart, RealScalar, ComplexScalar>::type OutputScalar;
   typedef OutputScalar CoeffReturnType;
   typedef typename Eigen::internal::nested<TensorFFTOp>::type Nested;
   typedef typename Eigen::internal::traits<TensorFFTOp>::StorageKind StorageKind;
@@ -104,7 +101,7 @@ class TensorFFTOp : public TensorBase<TensorFFTOp<FFT, XprType, FFTResultType, F
   const FFT& fft() const { return m_fft; }
 
   EIGEN_DEVICE_FUNC
-  const internal::remove_all_t<typename XprType::Nested>& expression() const {
+  const typename internal::remove_all<typename XprType::Nested>::type& expression() const {
     return m_xpr;
   }
 
@@ -118,7 +115,7 @@ template <typename FFT, typename ArgType, typename Device, int FFTResultType, in
 struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, Device> {
   typedef TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir> XprType;
   typedef typename XprType::Index Index;
-  static constexpr int NumDims = internal::array_size<typename TensorEvaluator<ArgType, Device>::Dimensions>::value;
+  static const int NumDims = internal::array_size<typename TensorEvaluator<ArgType, Device>::Dimensions>::value;
   typedef DSizes<Index, NumDims> Dimensions;
   typedef typename XprType::Scalar Scalar;
   typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
@@ -126,19 +123,19 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
   typedef typename TensorEvaluator<ArgType, Device>::Dimensions InputDimensions;
   typedef internal::traits<XprType> XprTraits;
   typedef typename XprTraits::Scalar InputScalar;
-  typedef std::conditional_t<FFTResultType == RealPart || FFTResultType == ImagPart, RealScalar, ComplexScalar> OutputScalar;
+  typedef typename internal::conditional<FFTResultType == RealPart || FFTResultType == ImagPart, RealScalar, ComplexScalar>::type OutputScalar;
   typedef OutputScalar CoeffReturnType;
   typedef typename PacketType<OutputScalar, Device>::type PacketReturnType;
-  static constexpr int PacketSize = internal::unpacket_traits<PacketReturnType>::size;
-  typedef StorageMemory<CoeffReturnType, Device> Storage;
+  static const int PacketSize = internal::unpacket_traits<PacketReturnType>::size;
+    typedef StorageMemory<CoeffReturnType, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;
 
-  static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
     IsAligned = false,
     PacketAccess = true,
     BlockAccess = false,
     PreferBlockAccess = false,
+    Layout = TensorEvaluator<ArgType, Device>::Layout,
     CoordAccess = false,
     RawAccess = false
   };
@@ -208,6 +205,12 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
   }
 
   EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return m_data; }
+#ifdef EIGEN_USE_SYCL
+  // binding placeholder accessors to a command group handler for SYCL
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void bind(cl::sycl::handler &cgh) const {
+    m_data.bind(cgh);
+  }
+#endif
 
  private:
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalToBuf(EvaluatorPointerType data) {

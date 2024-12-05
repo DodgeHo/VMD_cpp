@@ -30,9 +30,6 @@
 #ifndef SPARSELU_PRUNEL_H
 #define SPARSELU_PRUNEL_H
 
-// IWYU pragma: private
-#include "./InternalHeaderCheck.h"
-
 namespace Eigen {
 namespace internal {
 

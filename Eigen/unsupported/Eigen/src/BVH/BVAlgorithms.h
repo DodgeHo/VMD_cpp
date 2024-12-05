@@ -10,9 +10,6 @@
 #ifndef EIGEN_BVALGORITHMS_H
 #define EIGEN_BVALGORITHMS_H
 
-// IWYU pragma: private
-#include "./InternalHeaderCheck.h"
-
 namespace Eigen { 
 
 namespace internal {

@@ -8,9 +8,6 @@
 #ifndef EIGEN_BESSELFUNCTIONS_BFLOAT16_H
 #define EIGEN_BESSELFUNCTIONS_BFLOAT16_H
 
-// IWYU pragma: private
-#include "./InternalHeaderCheck.h"
-
 namespace Eigen {
 namespace numext {
 

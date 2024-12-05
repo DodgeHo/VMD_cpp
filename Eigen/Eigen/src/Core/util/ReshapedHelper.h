@@ -11,9 +11,6 @@
 #ifndef EIGEN_RESHAPED_HELPER_H
 #define EIGEN_RESHAPED_HELPER_H
 
-// IWYU pragma: private
-#include "../InternalHeaderCheck.h"
-
 namespace Eigen {
 
 enum AutoSize_t   { AutoSize };
@@ -42,9 +39,10 @@ inline Index get_runtime_reshape_size(AutoSize_t /*size*/, Index other, Index to
   return total/other;
 }
 
-constexpr inline int get_compiletime_reshape_order(int flags, int order) {
-  return order == AutoOrder ? flags & RowMajorBit : order;
-}
+template<int Flags, int Order>
+struct get_compiletime_reshape_order {
+  enum { value = Order == AutoOrder ? Flags & RowMajorBit : Order };
+};
 
 }
 

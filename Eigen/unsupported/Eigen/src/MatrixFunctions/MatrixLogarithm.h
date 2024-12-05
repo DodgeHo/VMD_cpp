@@ -11,9 +11,6 @@
 #ifndef EIGEN_MATRIX_LOGARITHM
 #define EIGEN_MATRIX_LOGARITHM
 
-// IWYU pragma: private
-#include "./InternalHeaderCheck.h"
-
 namespace Eigen { 
 
 namespace internal { 
@@ -137,7 +134,7 @@ void matrix_log_compute_pade(MatrixType& result, const MatrixType& T, int degree
   typedef typename NumTraits<typename MatrixType::Scalar>::Real RealScalar;
   const int minPadeDegree = 3;
   const int maxPadeDegree = 11;
-  eigen_assert(degree >= minPadeDegree && degree <= maxPadeDegree);
+  assert(degree >= minPadeDegree && degree <= maxPadeDegree);
   // FIXME this creates float-conversion-warnings if these are enabled.
   // Either manually convert each value, or disable the warning locally
   const RealScalar nodes[][maxPadeDegree] = { 
@@ -335,7 +332,7 @@ public:
   inline void evalTo(ResultType& result) const
   {
     typedef typename internal::nested_eval<Derived, 10>::type DerivedEvalType;
-    typedef internal::remove_all_t<DerivedEvalType> DerivedEvalTypeClean;
+    typedef typename internal::remove_all<DerivedEvalType>::type DerivedEvalTypeClean;
     typedef internal::traits<DerivedEvalTypeClean> Traits;
     typedef std::complex<typename NumTraits<Scalar>::Real> ComplexScalar;
     typedef Matrix<ComplexScalar, Dynamic, Dynamic, 0, Traits::RowsAtCompileTime, Traits::ColsAtCompileTime> DynMatrixType;

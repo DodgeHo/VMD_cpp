@@ -12,9 +12,6 @@
 #ifndef EIGEN_CONSTANTS_H
 #define EIGEN_CONSTANTS_H
 
-// IWYU pragma: private
-#include "../InternalHeaderCheck.h"
-
 namespace Eigen {
 
 /** This value means that a positive quantity (e.g., a size) is not known at compile-time, and that instead the value is
@@ -137,7 +134,7 @@ const unsigned int LinearAccessBit = 0x10;
   * Means the expression has a coeffRef() method, i.e. is writable as its individual coefficients are directly addressable.
   * This rules out read-only expressions.
   *
-  * Note that DirectAccessBit and LvalueBit are mutually orthogonal, as there are examples of expression having one but not
+  * Note that DirectAccessBit and LvalueBit are mutually orthogonal, as there are examples of expression having one but note
   * the other:
   *   \li writable expressions that don't have a very simple memory layout as a strided array, have LvalueBit but not DirectAccessBit
   *   \li Map-to-const expressions, for example Map<const Matrix>, have DirectAccessBit but not LvalueBit
@@ -315,7 +312,7 @@ enum SpecializedType {
 };
 
 /** \ingroup enums
-  * Enum containing possible values for the \p Options_ template parameter of
+  * Enum containing possible values for the \p _Options template parameter of
   * Matrix, Array and BandMatrix. */
 enum StorageOptions {
   /** Storage order is column major (see \ref TopicStorageOrders). */
@@ -424,16 +421,14 @@ enum DecompositionOptions {
 /** \ingroup enums
   * Possible values for the \p QRPreconditioner template parameter of JacobiSVD. */
 enum QRPreconditioners {
-  /** Use a QR decomposition with column pivoting as the first step. */
-  ColPivHouseholderQRPreconditioner = 0x0,
   /** Do not specify what is to be done if the SVD of a non-square matrix is asked for. */
-  NoQRPreconditioner = 0x40,
+  NoQRPreconditioner,
   /** Use a QR decomposition without pivoting as the first step. */
-  HouseholderQRPreconditioner = 0x80,
+  HouseholderQRPreconditioner,
+  /** Use a QR decomposition with column pivoting as the first step. */
+  ColPivHouseholderQRPreconditioner,
   /** Use a QR decomposition with full pivoting as the first step. */
-  FullPivHouseholderQRPreconditioner = 0xC0,
-  /** Used to disable the QR Preconditioner in BDCSVD. */
-  DisableQRDecomposition = NoQRPreconditioner
+  FullPivHouseholderQRPreconditioner
 };
 
 #ifdef Success
@@ -481,7 +476,6 @@ namespace Architecture
     NEON = 0x4,
     MSA = 0x5,
     SVE = 0x6,
-    HVX = 0x7,
 #if defined EIGEN_VECTORIZE_SSE
     Target = SSE
 #elif defined EIGEN_VECTORIZE_ALTIVEC
@@ -494,8 +488,6 @@ namespace Architecture
     Target = SVE
 #elif defined EIGEN_VECTORIZE_MSA
     Target = MSA
-#elif defined EIGEN_VECTORIZE_HVX
-    Target = HVX
 #else
     Target = Generic
 #endif
@@ -537,7 +529,6 @@ struct DenseShape             { static std::string debugName() { return "DenseSh
 struct SolverShape            { static std::string debugName() { return "SolverShape"; } };
 struct HomogeneousShape       { static std::string debugName() { return "HomogeneousShape"; } };
 struct DiagonalShape          { static std::string debugName() { return "DiagonalShape"; } };
-struct SkewSymmetricShape     { static std::string debugName() { return "SkewSymmetricShape"; } };
 struct BandShape              { static std::string debugName() { return "BandShape"; } };
 struct TriangularShape        { static std::string debugName() { return "TriangularShape"; } };
 struct SelfAdjointShape       { static std::string debugName() { return "SelfAdjointShape"; } };
@@ -556,7 +547,7 @@ struct IteratorBased {};
 /** \internal
  * Constants for comparison functors
  */
-enum ComparisonName : unsigned int {
+enum ComparisonName {
   cmp_EQ = 0,
   cmp_LT = 1,
   cmp_LE = 2,

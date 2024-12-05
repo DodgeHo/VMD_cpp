@@ -4,7 +4,7 @@ using namespace std;
 
 void VMD
 (MatrixXd& u, MatrixXcd& u_hat, MatrixXd& omega,
-	vectord& signal, const double alpha, const double tau,
+	const vectord& signal, const double alpha, const double tau,
 	const int K, const int DC, const int init, const double tol, const double eps) {
 	/* ---------------------
 
@@ -49,7 +49,7 @@ void VMD
 	vectord timevec(T, 0.0);
 	for (int i = 0; i < T; i++) {
 		timevec[i] = double(i + 1.0) / T;
-		freqs[i] = (timevec[i] - 0.5) - double(1 / T);
+		freqs[i] = (timevec[i] - 0.5) - (1.0 / T);
 	}
 
 	// Maximum number of iterations(if not converged yet, then it won't anyway)
@@ -158,7 +158,8 @@ void VMD
 			omega_plus(n, k) = Dividend / Divisor;
 		}
 
-		lambda_hat.row(n).noalias() = lambda_hat.row(n - 1) + tau * (u_hat_plus[n].rowwise().sum() - f_hat_plus_Xcd);
+		lambda_hat.row(n) = lambda_hat.row(n - 1) + tau * (u_hat_plus[n].colwise().sum() - f_hat_plus_Xcd);
+		//lambda_hat.row(n).noalias() = lambda_hat.row(n - 1) + tau * (u_hat_plus[n].rowwise().sum() - f_hat_plus_Xcd);
 		n++;
 
 		std::complex<double> acc{ eps, 0 };
@@ -217,7 +218,7 @@ void VMD
 #pragma region Ancillary Functions 
 
 vectorcd circshift(vectorcd& data, int offset) {
-	int n = int(data.size());
+	const int n = int(data.size());
 	if (offset == 0) {
 		vectorcd out_data(data);
 		return out_data;
@@ -249,7 +250,6 @@ vectorcd ExtractColFromMatrixXcd(MatrixXcd& Input, const int ColIdx, const int R
 		Output[i] = Input(i, ColIdx);
 	return Output;
 }
-
 
 vectorcd ExtractRowFromMatrixXd(MatrixXd& Input, const int RowIdx, const int ColNum) {
 	vectorcd Output(ColNum, 0);

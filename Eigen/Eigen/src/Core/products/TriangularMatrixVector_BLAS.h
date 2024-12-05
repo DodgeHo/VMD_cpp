@@ -33,9 +33,6 @@
 #ifndef EIGEN_TRIANGULAR_MATRIX_VECTOR_BLAS_H
 #define EIGEN_TRIANGULAR_MATRIX_VECTOR_BLAS_H
 
-// IWYU pragma: private
-#include "../InternalHeaderCheck.h"
-
 namespace Eigen { 
 
 namespace internal {
@@ -53,18 +50,18 @@ struct triangular_matrix_vector_product_trmv :
 #define EIGEN_BLAS_TRMV_SPECIALIZE(Scalar) \
 template<typename Index, int Mode, bool ConjLhs, bool ConjRhs> \
 struct triangular_matrix_vector_product<Index,Mode,Scalar,ConjLhs,Scalar,ConjRhs,ColMajor,Specialized> { \
- static void run(Index rows_, Index cols_, const Scalar* lhs_, Index lhsStride, \
-                                     const Scalar* rhs_, Index rhsIncr, Scalar* res_, Index resIncr, Scalar alpha) { \
+ static void run(Index _rows, Index _cols, const Scalar* _lhs, Index lhsStride, \
+                                     const Scalar* _rhs, Index rhsIncr, Scalar* _res, Index resIncr, Scalar alpha) { \
       triangular_matrix_vector_product_trmv<Index,Mode,Scalar,ConjLhs,Scalar,ConjRhs,ColMajor>::run( \
-        rows_, cols_, lhs_, lhsStride, rhs_, rhsIncr, res_, resIncr, alpha); \
+        _rows, _cols, _lhs, lhsStride, _rhs, rhsIncr, _res, resIncr, alpha); \
   } \
 }; \
 template<typename Index, int Mode, bool ConjLhs, bool ConjRhs> \
 struct triangular_matrix_vector_product<Index,Mode,Scalar,ConjLhs,Scalar,ConjRhs,RowMajor,Specialized> { \
- static void run(Index rows_, Index cols_, const Scalar* lhs_, Index lhsStride, \
-                                     const Scalar* rhs_, Index rhsIncr, Scalar* res_, Index resIncr, Scalar alpha) { \
+ static void run(Index _rows, Index _cols, const Scalar* _lhs, Index lhsStride, \
+                                     const Scalar* _rhs, Index rhsIncr, Scalar* _res, Index resIncr, Scalar alpha) { \
       triangular_matrix_vector_product_trmv<Index,Mode,Scalar,ConjLhs,Scalar,ConjRhs,RowMajor>::run( \
-        rows_, cols_, lhs_, lhsStride, rhs_, rhsIncr, res_, resIncr, alpha); \
+        _rows, _cols, _lhs, lhsStride, _rhs, rhsIncr, _res, resIncr, alpha); \
   } \
 };
 
@@ -84,23 +81,23 @@ struct triangular_matrix_vector_product_trmv<Index,Mode,EIGTYPE,ConjLhs,EIGTYPE,
     IsZeroDiag  = (Mode&ZeroDiag) ? 1 : 0, \
     LowUp = IsLower ? Lower : Upper \
   }; \
- static void run(Index rows_, Index cols_, const EIGTYPE* lhs_, Index lhsStride, \
-                 const EIGTYPE* rhs_, Index rhsIncr, EIGTYPE* res_, Index resIncr, EIGTYPE alpha) \
+ static void run(Index _rows, Index _cols, const EIGTYPE* _lhs, Index lhsStride, \
+                 const EIGTYPE* _rhs, Index rhsIncr, EIGTYPE* _res, Index resIncr, EIGTYPE alpha) \
  { \
    if (ConjLhs || IsZeroDiag) { \
      triangular_matrix_vector_product<Index,Mode,EIGTYPE,ConjLhs,EIGTYPE,ConjRhs,ColMajor,BuiltIn>::run( \
-       rows_, cols_, lhs_, lhsStride, rhs_, rhsIncr, res_, resIncr, alpha); \
+       _rows, _cols, _lhs, lhsStride, _rhs, rhsIncr, _res, resIncr, alpha); \
      return; \
    }\
-   Index size = (std::min)(rows_,cols_); \
-   Index rows = IsLower ? rows_ : size; \
-   Index cols = IsLower ? size : cols_; \
+   Index size = (std::min)(_rows,_cols); \
+   Index rows = IsLower ? _rows : size; \
+   Index cols = IsLower ? size : _cols; \
 \
    typedef VectorX##EIGPREFIX VectorRhs; \
    EIGTYPE *x, *y;\
 \
 /* Set x*/ \
-   Map<const VectorRhs, 0, InnerStride<> > rhs(rhs_,cols,InnerStride<>(rhsIncr)); \
+   Map<const VectorRhs, 0, InnerStride<> > rhs(_rhs,cols,InnerStride<>(rhsIncr)); \
    VectorRhs x_tmp; \
    if (ConjRhs) x_tmp = rhs.conjugate(); else x_tmp = rhs; \
    x = x_tmp.data(); \
@@ -124,24 +121,24 @@ struct triangular_matrix_vector_product_trmv<Index,Mode,EIGTYPE,ConjLhs,EIGTYPE,
    diag = IsUnitDiag ? 'U' : 'N'; \
 \
 /* call ?TRMV*/ \
-   BLASPREFIX##trmv##BLASPOSTFIX(&uplo, &trans, &diag, &n, (const BLASTYPE*)lhs_, &lda, (BLASTYPE*)x, &incx); \
+   BLASPREFIX##trmv##BLASPOSTFIX(&uplo, &trans, &diag, &n, (const BLASTYPE*)_lhs, &lda, (BLASTYPE*)x, &incx); \
 \
 /* Add op(a_tr)rhs into res*/ \
-   BLASPREFIX##axpy##BLASPOSTFIX(&n, (const BLASTYPE*)&numext::real_ref(alpha),(const BLASTYPE*)x, &incx, (BLASTYPE*)res_, &incy); \
+   BLASPREFIX##axpy##BLASPOSTFIX(&n, (const BLASTYPE*)&numext::real_ref(alpha),(const BLASTYPE*)x, &incx, (BLASTYPE*)_res, &incy); \
 /* Non-square case - doesn't fit to BLAS ?TRMV. Fall to default triangular product*/ \
    if (size<(std::max)(rows,cols)) { \
      if (ConjRhs) x_tmp = rhs.conjugate(); else x_tmp = rhs; \
      x = x_tmp.data(); \
      if (size<rows) { \
-       y = res_ + size*resIncr; \
-       a = lhs_ + size; \
+       y = _res + size*resIncr; \
+       a = _lhs + size; \
        m = convert_index<BlasIndex>(rows-size); \
        n = convert_index<BlasIndex>(size); \
      } \
      else { \
        x += size; \
-       y = res_; \
-       a = lhs_ + size*lda; \
+       y = _res; \
+       a = _lhs + size*lda; \
        m = convert_index<BlasIndex>(size); \
        n = convert_index<BlasIndex>(cols-size); \
      } \
@@ -173,23 +170,23 @@ struct triangular_matrix_vector_product_trmv<Index,Mode,EIGTYPE,ConjLhs,EIGTYPE,
     IsZeroDiag  = (Mode&ZeroDiag) ? 1 : 0, \
     LowUp = IsLower ? Lower : Upper \
   }; \
- static void run(Index rows_, Index cols_, const EIGTYPE* lhs_, Index lhsStride, \
-                 const EIGTYPE* rhs_, Index rhsIncr, EIGTYPE* res_, Index resIncr, EIGTYPE alpha) \
+ static void run(Index _rows, Index _cols, const EIGTYPE* _lhs, Index lhsStride, \
+                 const EIGTYPE* _rhs, Index rhsIncr, EIGTYPE* _res, Index resIncr, EIGTYPE alpha) \
  { \
    if (IsZeroDiag) { \
      triangular_matrix_vector_product<Index,Mode,EIGTYPE,ConjLhs,EIGTYPE,ConjRhs,RowMajor,BuiltIn>::run( \
-       rows_, cols_, lhs_, lhsStride, rhs_, rhsIncr, res_, resIncr, alpha); \
+       _rows, _cols, _lhs, lhsStride, _rhs, rhsIncr, _res, resIncr, alpha); \
      return; \
    }\
-   Index size = (std::min)(rows_,cols_); \
-   Index rows = IsLower ? rows_ : size; \
-   Index cols = IsLower ? size : cols_; \
+   Index size = (std::min)(_rows,_cols); \
+   Index rows = IsLower ? _rows : size; \
+   Index cols = IsLower ? size : _cols; \
 \
    typedef VectorX##EIGPREFIX VectorRhs; \
    EIGTYPE *x, *y;\
 \
 /* Set x*/ \
-   Map<const VectorRhs, 0, InnerStride<> > rhs(rhs_,cols,InnerStride<>(rhsIncr)); \
+   Map<const VectorRhs, 0, InnerStride<> > rhs(_rhs,cols,InnerStride<>(rhsIncr)); \
    VectorRhs x_tmp; \
    if (ConjRhs) x_tmp = rhs.conjugate(); else x_tmp = rhs; \
    x = x_tmp.data(); \
@@ -213,24 +210,24 @@ struct triangular_matrix_vector_product_trmv<Index,Mode,EIGTYPE,ConjLhs,EIGTYPE,
    diag = IsUnitDiag ? 'U' : 'N'; \
 \
 /* call ?TRMV*/ \
-   BLASPREFIX##trmv##BLASPOSTFIX(&uplo, &trans, &diag, &n, (const BLASTYPE*)lhs_, &lda, (BLASTYPE*)x, &incx); \
+   BLASPREFIX##trmv##BLASPOSTFIX(&uplo, &trans, &diag, &n, (const BLASTYPE*)_lhs, &lda, (BLASTYPE*)x, &incx); \
 \
 /* Add op(a_tr)rhs into res*/ \
-   BLASPREFIX##axpy##BLASPOSTFIX(&n, (const BLASTYPE*)&numext::real_ref(alpha),(const BLASTYPE*)x, &incx, (BLASTYPE*)res_, &incy); \
+   BLASPREFIX##axpy##BLASPOSTFIX(&n, (const BLASTYPE*)&numext::real_ref(alpha),(const BLASTYPE*)x, &incx, (BLASTYPE*)_res, &incy); \
 /* Non-square case - doesn't fit to BLAS ?TRMV. Fall to default triangular product*/ \
    if (size<(std::max)(rows,cols)) { \
      if (ConjRhs) x_tmp = rhs.conjugate(); else x_tmp = rhs; \
      x = x_tmp.data(); \
      if (size<rows) { \
-       y = res_ + size*resIncr; \
-       a = lhs_ + size*lda; \
+       y = _res + size*resIncr; \
+       a = _lhs + size*lda; \
        m = convert_index<BlasIndex>(rows-size); \
        n = convert_index<BlasIndex>(size); \
      } \
      else { \
        x += size; \
-       y = res_; \
-       a = lhs_ + size; \
+       y = _res; \
+       a = _lhs + size; \
        m = convert_index<BlasIndex>(size); \
        n = convert_index<BlasIndex>(cols-size); \
      } \

@@ -19,9 +19,7 @@
 
 #else
 
-// IWYU pragma: begin_exports
 #include "src/StlSupport/StdList.h"
-// IWYU pragma: end_exports
 
 #endif
 

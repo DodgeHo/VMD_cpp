@@ -33,9 +33,6 @@
 #ifndef EIGEN_TRIANGULAR_SOLVER_MATRIX_BLAS_H
 #define EIGEN_TRIANGULAR_SOLVER_MATRIX_BLAS_H
 
-// IWYU pragma: private
-#include "../InternalHeaderCheck.h"
-
 namespace Eigen {
 
 namespace internal {

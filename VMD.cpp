@@ -60,7 +60,6 @@ int main() {
 			p_data = p_data + u.row(k);
 	}
 
-
 	for (int j = 0; j < T; j++) {
 		if (p_data(0, j) < 0) {
 			p_data = p_data.array() - p_data.minCoeff();
@@ -69,13 +68,21 @@ int main() {
 	}
 
 	
-	// output example 
-	cout << "Decomposition results" << endl;
-	printMatrix(u);
-	string name = "test_result_1.csv";
-	ofstream file1(name.c_str());
-	file1 << u.format(CSVFormat);
-	file1.close();
+	// Output results
+	cout << "VMD Decomposition Results:" << endl;
+	cout << "Number of modes: " << K << endl;
+	cout << "Matrix dimensions: " << u.rows() << " x " << u.cols() << endl;
 	
+	// Save decomposition results to CSV
+	const string output_filename = "vmd_decomposition_results.csv";
+	ofstream output_file(output_filename);
+	if (!output_file) {
+		cerr << "Error: Could not open file " << output_filename << endl;
+		return 1;
+	}
+	output_file << u.format(CSVFormat);
+	output_file.close();
+	cout << "Results saved to: " << output_filename << endl;
+
 	return 0;
 }; 

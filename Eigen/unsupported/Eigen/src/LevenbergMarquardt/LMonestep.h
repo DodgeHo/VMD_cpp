@@ -14,9 +14,6 @@
 #ifndef EIGEN_LMONESTEP_H
 #define EIGEN_LMONESTEP_H
 
-// IWYU pragma: private
-#include "./InternalHeaderCheck.h"
-
 namespace Eigen {
 
 template<typename FunctorType>

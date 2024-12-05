@@ -22,15 +22,15 @@ template<int Alignment,typename VectorType> void map_class_vector(const VectorTy
   Scalar* a_array = internal::aligned_new<Scalar>(arraysize+1);
   Scalar* array = a_array;
   if(Alignment!=Aligned)
-    array = (Scalar*)(std::intptr_t(a_array) + (internal::packet_traits<Scalar>::AlignedOnScalar?sizeof(Scalar):sizeof(typename NumTraits<Scalar>::Real)));
+    array = (Scalar*)(internal::IntPtr(a_array) + (internal::packet_traits<Scalar>::AlignedOnScalar?sizeof(Scalar):sizeof(typename NumTraits<Scalar>::Real)));
 
   {
     Map<VectorType, Alignment, InnerStride<3> > map(array, size);
     map = v;
     for(int i = 0; i < size; ++i)
     {
-      VERIFY_IS_EQUAL(array[3*i], v[i]);
-      VERIFY_IS_EQUAL(map[i], v[i]);
+      VERIFY(array[3*i] == v[i]);
+      VERIFY(map[i] == v[i]);
     }
   }
 
@@ -39,8 +39,8 @@ template<int Alignment,typename VectorType> void map_class_vector(const VectorTy
     map = v;
     for(int i = 0; i < size; ++i)
     {
-      VERIFY_IS_EQUAL(array[2*i], v[i]);
-      VERIFY_IS_EQUAL(map[i], v[i]);
+      VERIFY(array[2*i] == v[i]);
+      VERIFY(map[i] == v[i]);
     }
   }
 
@@ -61,17 +61,14 @@ template<int Alignment,typename MatrixType> void map_class_matrix(const MatrixTy
   Scalar* a_array1 = internal::aligned_new<Scalar>(arraysize+1);
   Scalar* array1 = a_array1;
   if(Alignment!=Aligned)
-    array1 = (Scalar*)(std::intptr_t(a_array1) + (internal::packet_traits<Scalar>::AlignedOnScalar?sizeof(Scalar):sizeof(typename NumTraits<Scalar>::Real)));
+    array1 = (Scalar*)(internal::IntPtr(a_array1) + (internal::packet_traits<Scalar>::AlignedOnScalar?sizeof(Scalar):sizeof(typename NumTraits<Scalar>::Real)));
 
   Scalar a_array2[256];
   Scalar* array2 = a_array2;
-  if(Alignment!=Aligned) {
-    array2 = (Scalar*)(std::intptr_t(a_array2) + (internal::packet_traits<Scalar>::AlignedOnScalar?sizeof(Scalar):sizeof(typename NumTraits<Scalar>::Real)));
-  } else {
-    // In case there is no alignment, default to pointing to the start.
-    constexpr int alignment = (std::max<int>)(EIGEN_MAX_ALIGN_BYTES, 1);
-    array2 = (Scalar*)(((std::uintptr_t(a_array2)+alignment-1)/alignment)*alignment);
-  }
+  if(Alignment!=Aligned)
+    array2 = (Scalar*)(internal::IntPtr(a_array2) + (internal::packet_traits<Scalar>::AlignedOnScalar?sizeof(Scalar):sizeof(typename NumTraits<Scalar>::Real)));
+  else
+    array2 = (Scalar*)(((internal::UIntPtr(a_array2)+EIGEN_MAX_ALIGN_BYTES-1)/EIGEN_MAX_ALIGN_BYTES)*EIGEN_MAX_ALIGN_BYTES);
   Index maxsize2 = a_array2 - array2 + 256;
   
   // test no inner stride and some dynamic outer stride
@@ -87,8 +84,8 @@ template<int Alignment,typename MatrixType> void map_class_matrix(const MatrixTy
     for(int i = 0; i < m.outerSize(); ++i)
       for(int j = 0; j < m.innerSize(); ++j)
       {
-        VERIFY_IS_EQUAL(array[map.outerStride()*i+j], m.coeffByOuterInner(i,j));
-        VERIFY_IS_EQUAL(map.coeffByOuterInner(i,j), m.coeffByOuterInner(i,j));
+        VERIFY(array[map.outerStride()*i+j] == m.coeffByOuterInner(i,j));
+        VERIFY(map.coeffByOuterInner(i,j) == m.coeffByOuterInner(i,j));
       }
     VERIFY_IS_APPROX(s1*map,s1*m);
     map *= s1;
@@ -114,8 +111,8 @@ template<int Alignment,typename MatrixType> void map_class_matrix(const MatrixTy
     for(int i = 0; i < m.outerSize(); ++i)
       for(int j = 0; j < m.innerSize(); ++j)
       {
-        VERIFY_IS_EQUAL(array[map.outerStride()*i+j], m.coeffByOuterInner(i,j));
-        VERIFY_IS_EQUAL(map.coeffByOuterInner(i,j), m.coeffByOuterInner(i,j));
+        VERIFY(array[map.outerStride()*i+j] == m.coeffByOuterInner(i,j));
+        VERIFY(map.coeffByOuterInner(i,j) == m.coeffByOuterInner(i,j));
       }
     VERIFY_IS_APPROX(s1*map,s1*m);
     map *= s1;
@@ -136,8 +133,8 @@ template<int Alignment,typename MatrixType> void map_class_matrix(const MatrixTy
     for(int i = 0; i < m.outerSize(); ++i)
       for(int j = 0; j < m.innerSize(); ++j)
       {
-        VERIFY_IS_EQUAL(array[map.outerStride()*i+map.innerStride()*j], m.coeffByOuterInner(i,j));
-        VERIFY_IS_EQUAL(map.coeffByOuterInner(i,j), m.coeffByOuterInner(i,j));
+        VERIFY(array[map.outerStride()*i+map.innerStride()*j] == m.coeffByOuterInner(i,j));
+        VERIFY(map.coeffByOuterInner(i,j) == m.coeffByOuterInner(i,j));
       }
     VERIFY_IS_APPROX(s1*map,s1*m);
     map *= s1;
@@ -157,8 +154,8 @@ template<int Alignment,typename MatrixType> void map_class_matrix(const MatrixTy
     for(int i = 0; i < m.outerSize(); ++i)
       for(int j = 0; j < m.innerSize(); ++j)
       {
-        VERIFY_IS_EQUAL(array[map.innerSize()*i*2+j*2], m.coeffByOuterInner(i,j));
-        VERIFY_IS_EQUAL(map.coeffByOuterInner(i,j), m.coeffByOuterInner(i,j));
+        VERIFY(array[map.innerSize()*i*2+j*2] == m.coeffByOuterInner(i,j));
+        VERIFY(map.coeffByOuterInner(i,j) == m.coeffByOuterInner(i,j));
       }
     VERIFY_IS_APPROX(s1*map,s1*m);
     map *= s1;

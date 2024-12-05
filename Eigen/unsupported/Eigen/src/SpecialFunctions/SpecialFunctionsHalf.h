@@ -8,9 +8,6 @@
 #ifndef EIGEN_SPECIALFUNCTIONS_HALF_H
 #define EIGEN_SPECIALFUNCTIONS_HALF_H
 
-// IWYU pragma: private
-#include "./InternalHeaderCheck.h"
-
 namespace Eigen {
 namespace numext {
 

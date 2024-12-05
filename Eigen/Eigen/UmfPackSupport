@@ -33,9 +33,7 @@ extern "C" {
   *
   */
 
-// IWYU pragma: begin_exports
 #include "src/UmfPackSupport/UmfPackSupport.h"
-// IWYU pragma: endexports
 
 #include "src/Core/util/ReenableStupidWarnings.h"
 

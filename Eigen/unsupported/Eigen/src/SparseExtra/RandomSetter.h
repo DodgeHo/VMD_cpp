@@ -16,9 +16,6 @@
 namespace google {}
 #endif
 
-// IWYU pragma: private
-#include "./InternalHeaderCheck.h"
-
 namespace Eigen {
 
 /** Represents a std::map
@@ -36,8 +33,21 @@ template<typename Scalar> struct StdMapTraits
   static void setInvalidKey(Type&, const KeyType&) {}
 };
 
-
+#ifdef EIGEN_UNORDERED_MAP_SUPPORT
 /** Represents a std::unordered_map
+  *
+  * To use it you need to both define EIGEN_UNORDERED_MAP_SUPPORT and include the unordered_map header file
+  * yourself making sure that unordered_map is defined in the std namespace.
+  *
+  * For instance, with current version of gcc you can either enable C++0x standard (-std=c++0x) or do:
+  * \code
+  * #include <tr1/unordered_map>
+  * #define EIGEN_UNORDERED_MAP_SUPPORT
+  * namespace std {
+  *   using std::tr1::unordered_map;
+  * }
+  * \endcode
+  *
   * \see RandomSetter
   */
 template<typename Scalar> struct StdUnorderedMapTraits
@@ -50,6 +60,7 @@ template<typename Scalar> struct StdUnorderedMapTraits
 
   static void setInvalidKey(Type&, const KeyType&) {}
 };
+#endif // EIGEN_UNORDERED_MAP_SUPPORT
 
 #if defined(EIGEN_GOOGLEHASH_SUPPORT)
 
@@ -104,7 +115,7 @@ template<typename Scalar> struct GoogleSparseHashMapTraits
 #endif
 
 /** \class RandomSetter
-  * \ingroup SparseExtra_Module
+  *
   * \brief The RandomSetter is a wrapper object allowing to set/update a sparse matrix with random access
   *
   * \tparam SparseMatrixType the type of the sparse matrix we are updating
@@ -138,12 +149,12 @@ template<typename Scalar> struct GoogleSparseHashMapTraits
   *
   * The possible values for the template parameter MapTraits are:
   *  - \b StdMapTraits: corresponds to std::map. (does not perform very well)
-  *  - \b StdUnorderedMapTraits: corresponds to std::unordered_map
+  *  - \b GnuHashMapTraits: corresponds to __gnu_cxx::hash_map (available only with GCC)
   *  - \b GoogleDenseHashMapTraits: corresponds to google::dense_hash_map (best efficiency, reasonable memory consumption)
   *  - \b GoogleSparseHashMapTraits: corresponds to google::sparse_hash_map (best memory consumption, relatively good performance)
   *
   * The default map implementation depends on the availability, and the preferred order is:
-  * GoogleSparseHashMapTraits, StdUnorderedMapTraits, and finally StdMapTraits.
+  * GoogleSparseHashMapTraits, GnuHashMapTraits, and finally StdMapTraits.
   *
   * For performance and memory consumption reasons it is highly recommended to use one of
   * Google's hash_map implementations. To enable the support for them, you must define
@@ -156,8 +167,10 @@ template<typename SparseMatrixType,
          template <typename T> class MapTraits =
 #if defined(EIGEN_GOOGLEHASH_SUPPORT)
           GoogleDenseHashMapTraits
+#elif defined(_HASH_MAP)
+          GnuHashMapTraits
 #else
-          StdUnorderedMapTraits
+          StdMapTraits
 #endif
          ,int OuterPacketBits = 6>
 class RandomSetter
@@ -172,7 +185,7 @@ class RandomSetter
     };
     typedef typename MapTraits<ScalarWrapper>::KeyType KeyType;
     typedef typename MapTraits<ScalarWrapper>::Type HashMapType;
-    static constexpr int OuterPacketMask = (1 << OuterPacketBits) - 1;
+    static const int OuterPacketMask = (1 << OuterPacketBits) - 1;
     enum {
       SwapStorage = 1 - MapTraits<ScalarWrapper>::IsSorted,
       TargetRowMajor = (SparseMatrixType::Flags & RowMajorBit) ? 1 : 0,

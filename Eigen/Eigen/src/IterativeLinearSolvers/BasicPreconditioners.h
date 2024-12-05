@@ -10,9 +10,6 @@
 #ifndef EIGEN_BASIC_PRECONDITIONERS_H
 #define EIGEN_BASIC_PRECONDITIONERS_H
 
-// IWYU pragma: private
-#include "./InternalHeaderCheck.h"
-
 namespace Eigen {
 
 /** \ingroup IterativeLinearSolvers_Module
@@ -24,7 +21,7 @@ namespace Eigen {
     A.diagonal().asDiagonal() . x = b
     \endcode
   *
-  * \tparam Scalar_ the type of the scalar.
+  * \tparam _Scalar the type of the scalar.
   *
   * \implsparsesolverconcept
   *
@@ -35,10 +32,10 @@ namespace Eigen {
   *
   * \sa class LeastSquareDiagonalPreconditioner, class ConjugateGradient
   */
-template <typename Scalar_>
+template <typename _Scalar>
 class DiagonalPreconditioner
 {
-    typedef Scalar_ Scalar;
+    typedef _Scalar Scalar;
     typedef Matrix<Scalar,Dynamic,1> Vector;
   public:
     typedef typename Vector::StorageIndex StorageIndex;
@@ -119,7 +116,7 @@ class DiagonalPreconditioner
     (A.adjoint() * A).diagonal().asDiagonal() * x = b
     \endcode
   *
-  * \tparam Scalar_ the type of the scalar.
+  * \tparam _Scalar the type of the scalar.
   *
   * \implsparsesolverconcept
   *
@@ -127,12 +124,12 @@ class DiagonalPreconditioner
   *
   * \sa class LeastSquaresConjugateGradient, class DiagonalPreconditioner
   */
-template <typename Scalar_>
-class LeastSquareDiagonalPreconditioner : public DiagonalPreconditioner<Scalar_>
+template <typename _Scalar>
+class LeastSquareDiagonalPreconditioner : public DiagonalPreconditioner<_Scalar>
 {
-    typedef Scalar_ Scalar;
+    typedef _Scalar Scalar;
     typedef typename NumTraits<Scalar>::Real RealScalar;
-    typedef DiagonalPreconditioner<Scalar_> Base;
+    typedef DiagonalPreconditioner<_Scalar> Base;
     using Base::m_invdiag;
   public:
 

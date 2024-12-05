@@ -1,7 +1,7 @@
 // This file is part of Eigen, a lightweight C++ template library
 // for linear algebra.
 //
-// Copyright (C) 2015 Gael Guennebaud <gael.guennebaud@inria.fr>
+// Copyright (C) 20015 Gael Guennebaud <gael.guennebaud@inria.fr>
 //
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
@@ -34,7 +34,7 @@ inline void on_temporary_creation() {
 template<typename PlainObjectType> void check_const_correctness(const PlainObjectType&)
 {
   // verify that ref-to-const don't have LvalueBit
-  typedef std::add_const_t<PlainObjectType> ConstPlainObjectType;
+  typedef typename internal::add_const<PlainObjectType>::type ConstPlainObjectType;
   VERIFY( !(internal::traits<Ref<ConstPlainObjectType> >::Flags & LvalueBit) );
   VERIFY( !(internal::traits<Ref<ConstPlainObjectType, Aligned> >::Flags & LvalueBit) );
   VERIFY( !(Ref<ConstPlainObjectType>::Flags & LvalueBit) );

@@ -10,9 +10,6 @@
 #ifndef EIGEN_SPARSETRANSPOSE_H
 #define EIGEN_SPARSETRANSPOSE_H
 
-// IWYU pragma: private
-#include "./InternalHeaderCheck.h"
-
 namespace Eigen { 
 
 namespace internal {

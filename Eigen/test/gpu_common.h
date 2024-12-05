@@ -12,6 +12,9 @@
 
 #include <iostream>
 
+#define EIGEN_USE_GPU
+#include <unsupported/Eigen/CXX11/src/Tensor/TensorGpuHipCudaDefines.h>
+
 #if !defined(__CUDACC__) && !defined(__HIPCC__)
 dim3 threadIdx, blockDim, blockIdx;
 #endif
@@ -146,7 +149,7 @@ void ei_test_init_gpu()
   std::cout << "  EIGEN_CUDA_SDK_VER:             " << int(EIGEN_CUDA_SDK_VER) << "\n";
   #endif
 
-  #if EIGEN_COMP_NVCC
+  #ifdef EIGEN_COMP_NVCC
   std::cout << "  EIGEN_COMP_NVCC:             " << int(EIGEN_COMP_NVCC) << "\n";
   #endif
   

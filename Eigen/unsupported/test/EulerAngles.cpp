@@ -9,8 +9,6 @@
 
 #include "main.h"
 
-EIGEN_DISABLE_DEPRECATED_WARNING
-
 #include <unsupported/Eigen/EulerAngles>
 
 using namespace Eigen;

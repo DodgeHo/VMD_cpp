@@ -11,7 +11,7 @@
 #include <unordered_set>
 
 #include "main.h"
-#include <Eigen/ThreadPool>
+#include <Eigen/CXX11/ThreadPool>
 
 struct Counter {
   Counter() = default;

@@ -11,9 +11,6 @@
 #ifndef EIGEN_HOUSEHOLDER_H
 #define EIGEN_HOUSEHOLDER_H
 
-// IWYU pragma: private
-#include "./InternalHeaderCheck.h"
-
 namespace Eigen { 
 
 namespace internal {
@@ -72,7 +69,7 @@ void MatrixBase<Derived>::makeHouseholder(
   Scalar& tau,
   RealScalar& beta) const
 {
-  using numext::sqrt;
+  using std::sqrt;
   using numext::conj;
   
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(EssentialPart)
@@ -125,7 +122,7 @@ void MatrixBase<Derived>::applyHouseholderOnTheLeft(
   {
     *this *= Scalar(1)-tau;
   }
-  else if(!numext::is_exactly_zero(tau))
+  else if(tau!=Scalar(0))
   {
     Map<typename internal::plain_row_type<PlainObject>::type> tmp(workspace,cols());
     Block<Derived, EssentialPart::SizeAtCompileTime, Derived::ColsAtCompileTime> bottom(derived(), 1, 0, rows()-1, cols());
@@ -163,7 +160,7 @@ void MatrixBase<Derived>::applyHouseholderOnTheRight(
   {
     *this *= Scalar(1)-tau;
   }
-  else if(!numext::is_exactly_zero(tau))
+  else if(tau!=Scalar(0))
   {
     Map<typename internal::plain_col_type<PlainObject>::type> tmp(workspace,rows());
     Block<Derived, Derived::RowsAtCompileTime, EssentialPart::SizeAtCompileTime> right(derived(), 0, 1, rows(), cols()-1);

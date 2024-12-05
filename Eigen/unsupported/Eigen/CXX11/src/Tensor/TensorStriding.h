@@ -10,9 +10,6 @@
 #ifndef EIGEN_CXX11_TENSOR_TENSOR_STRIDING_H
 #define EIGEN_CXX11_TENSOR_TENSOR_STRIDING_H
 
-// IWYU pragma: private
-#include "./InternalHeaderCheck.h"
-
 namespace Eigen {
 
 /** \class TensorStriding
@@ -31,9 +28,9 @@ struct traits<TensorStridingOp<Strides, XprType> > : public traits<XprType>
   typedef typename XprTraits::StorageKind StorageKind;
   typedef typename XprTraits::Index Index;
   typedef typename XprType::Nested Nested;
-  typedef std::remove_reference_t<Nested> Nested_;
-  static constexpr int NumDimensions = XprTraits::NumDimensions;
-  static constexpr int Layout = XprTraits::Layout;
+  typedef typename remove_reference<Nested>::type _Nested;
+  static const int NumDimensions = XprTraits::NumDimensions;
+  static const int Layout = XprTraits::Layout;
   typedef typename XprTraits::PointerType PointerType;
 };
 
@@ -72,7 +69,7 @@ class TensorStridingOp : public TensorBase<TensorStridingOp<Strides, XprType> >
     const Strides& strides() const { return m_dims; }
 
     EIGEN_DEVICE_FUNC
-    const internal::remove_all_t<typename XprType::Nested>&
+    const typename internal::remove_all<typename XprType::Nested>::type&
     expression() const { return m_xpr; }
 
     EIGEN_TENSOR_INHERIT_ASSIGNMENT_OPERATORS(TensorStridingOp)
@@ -89,21 +86,21 @@ struct TensorEvaluator<const TensorStridingOp<Strides, ArgType>, Device>
 {
   typedef TensorStridingOp<Strides, ArgType> XprType;
   typedef typename XprType::Index Index;
-  static constexpr int NumDims = internal::array_size<typename TensorEvaluator<ArgType, Device>::Dimensions>::value;
+  static const int NumDims = internal::array_size<typename TensorEvaluator<ArgType, Device>::Dimensions>::value;
   typedef DSizes<Index, NumDims> Dimensions;
   typedef typename XprType::Scalar Scalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
   typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
-  static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
+  static const int PacketSize = PacketType<CoeffReturnType, Device>::size;
   typedef StorageMemory<CoeffReturnType, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;
 
-  static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
     IsAligned = /*TensorEvaluator<ArgType, Device>::IsAligned*/false,
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
     BlockAccess = false,
     PreferBlockAccess = TensorEvaluator<ArgType, Device>::PreferBlockAccess,
+    Layout = TensorEvaluator<ArgType, Device>::Layout,
     CoordAccess = false,  // to be implemented
     RawAccess = false
   };
@@ -196,7 +193,7 @@ struct TensorEvaluator<const TensorStridingOp<Strides, ArgType>, Device>
       return rslt;
     }
     else {
-      EIGEN_ALIGN_MAX std::remove_const_t<CoeffReturnType> values[PacketSize];
+      EIGEN_ALIGN_MAX typename internal::remove_const<CoeffReturnType>::type values[PacketSize];
       values[0] = m_impl.coeff(inputIndices[0]);
       values[PacketSize-1] = m_impl.coeff(inputIndices[1]);
       EIGEN_UNROLL_LOOP
@@ -224,6 +221,12 @@ struct TensorEvaluator<const TensorStridingOp<Strides, ArgType>, Device>
 
   EIGEN_DEVICE_FUNC typename Storage::Type data() const { return NULL; }
 
+#ifdef EIGEN_USE_SYCL
+  // binding placeholder accessors to a command group handler for SYCL
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void bind(cl::sycl::handler &cgh) const {
+    m_impl.bind(cgh);
+  }
+#endif
  protected:
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index srcCoeff(Index index) const
   {
@@ -262,14 +265,14 @@ struct TensorEvaluator<TensorStridingOp<Strides, ArgType>, Device>
   typedef TensorStridingOp<Strides, ArgType> XprType;
   typedef TensorEvaluator<const XprType, Device> Base;
   //  typedef typename XprType::Index Index;
-  static constexpr int NumDims = internal::array_size<typename TensorEvaluator<ArgType, Device>::Dimensions>::value;
+  static const int NumDims = internal::array_size<typename TensorEvaluator<ArgType, Device>::Dimensions>::value;
   //  typedef DSizes<Index, NumDims> Dimensions;
 
-  static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
     IsAligned = /*TensorEvaluator<ArgType, Device>::IsAligned*/false,
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
     PreferBlockAccess = false,
+    Layout = TensorEvaluator<ArgType, Device>::Layout,
     CoordAccess = false,  // to be implemented
     RawAccess = false
   };
@@ -281,15 +284,15 @@ struct TensorEvaluator<TensorStridingOp<Strides, ArgType>, Device>
   typedef typename XprType::Scalar Scalar;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
   typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
-  static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
+  static const int PacketSize = PacketType<CoeffReturnType, Device>::size;
 
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& coeffRef(Index index) const
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar& coeffRef(Index index)
   {
     return this->m_impl.coeffRef(this->srcCoeff(index));
   }
 
   template <int StoreMode> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-  void writePacket(Index index, const PacketReturnType& x) const
+  void writePacket(Index index, const PacketReturnType& x)
   {
     EIGEN_STATIC_ASSERT((PacketSize > 1), YOU_MADE_A_PROGRAMMING_MISTAKE)
     eigen_assert(index+PacketSize-1 < this->dimensions().TotalSize());

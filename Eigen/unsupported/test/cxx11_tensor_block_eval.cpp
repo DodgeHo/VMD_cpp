@@ -244,7 +244,7 @@ static void test_eval_tensor_binary_with_unary_expr_block() {
   rhs.setRandom();
 
   VerifyBlockEvaluator<T, NumDims, Layout>(
-      (lhs.abs() + rhs.abs()).sqrt(),
+      (lhs.square() + rhs.square()).sqrt(),
       [&dims]() { return RandomBlock<Layout>(dims, 1, 10); });
 }
 

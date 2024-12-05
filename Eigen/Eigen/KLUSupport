@@ -8,9 +8,9 @@
 #ifndef EIGEN_KLUSUPPORT_MODULE_H
 #define EIGEN_KLUSUPPORT_MODULE_H
 
-#include "SparseCore"
+#include <Eigen/SparseCore>
 
-#include "src/Core/util/DisableStupidWarnings.h"
+#include <Eigen/src/Core/util/DisableStupidWarnings.h>
 
 extern "C" {
 #include <btf.h>
@@ -34,10 +34,8 @@ extern "C" {
   *
   */
 
-// IWYU pragma: begin_exports
 #include "src/KLUSupport/KLUSupport.h"
-// IWYU pragma: end_exports
 
-#include "src/Core/util/ReenableStupidWarnings.h"
+#include <Eigen/src/Core/util/ReenableStupidWarnings.h>
 
 #endif // EIGEN_KLUSUPPORT_MODULE_H

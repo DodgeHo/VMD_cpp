@@ -7,12 +7,6 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-
-// discard stack allocation as that too bypasses malloc
-#define EIGEN_STACK_ALLOCATION_LIMIT 0
-// heap allocation will raise an assert if enabled at runtime
-#define EIGEN_RUNTIME_NO_MALLOC
-
 #include "main.h"
 using namespace std;
 template<typename MatrixType> void diagonalmatrices(const MatrixType& m)
@@ -62,7 +56,6 @@ template<typename MatrixType> void diagonalmatrices(const MatrixType& m)
   Index i = internal::random<Index>(0, rows-1);
   Index j = internal::random<Index>(0, cols-1);
   
-  internal::set_is_malloc_allowed(false);
   VERIFY_IS_APPROX( ((ldm1 * m1)(i,j))  , ldm1.diagonal()(i) * m1(i,j) );
   VERIFY_IS_APPROX( ((ldm1 * (m1+m2))(i,j))  , ldm1.diagonal()(i) * (m1+m2)(i,j) );
   VERIFY_IS_APPROX( ((m1 * rdm1)(i,j))  , rdm1.diagonal()(j) * m1(i,j) );
@@ -72,10 +65,6 @@ template<typename MatrixType> void diagonalmatrices(const MatrixType& m)
   VERIFY_IS_APPROX( (((v1+v2).asDiagonal() * (m1+m2))(i,j))  , (v1+v2)(i) * (m1+m2)(i,j) );
   VERIFY_IS_APPROX( ((m1 * (rv1+rv2).asDiagonal())(i,j))  , (rv1+rv2)(j) * m1(i,j) );
   VERIFY_IS_APPROX( (((m1+m2) * (rv1+rv2).asDiagonal())(i,j))  , (rv1+rv2)(j) * (m1+m2)(i,j) );
-  VERIFY_IS_APPROX( (ldm1 * ldm1).diagonal()(i), ldm1.diagonal()(i) * ldm1.diagonal()(i) );
-  VERIFY_IS_APPROX( (ldm1 * ldm1 * m1)(i, j), ldm1.diagonal()(i) * ldm1.diagonal()(i) * m1(i, j) );
-  VERIFY_IS_APPROX( ((v1.asDiagonal() * v1.asDiagonal()).diagonal()(i)), v1(i) * v1(i) );
-  internal::set_is_malloc_allowed(true);
   
   if(rows>1)
   {
@@ -95,15 +84,7 @@ template<typename MatrixType> void diagonalmatrices(const MatrixType& m)
   big.block(i,j,rows,cols) = m1;
   big.block(i,j,rows,cols) = big.block(i,j,rows,cols) * rv1.asDiagonal();
   VERIFY_IS_APPROX((big.block(i,j,rows,cols)) , m1 * rv1.asDiagonal() );
-
-  // products do not allocate memory
-  MatrixType res(rows, cols);
-  internal::set_is_malloc_allowed(false);
-  res.noalias() = ldm1 * m1;
-  res.noalias() = m1 * rdm1;
-  res.noalias() = ldm1 * m1 * rdm1;
-  res.noalias() = LeftDiagonalMatrix::Identity(rows) * m1 * RightDiagonalMatrix::Zero(cols);
-  internal::set_is_malloc_allowed(true);  
+  
   
   // scalar multiple
   VERIFY_IS_APPROX(LeftDiagonalMatrix(ldm1*s1).diagonal(), ldm1.diagonal() * s1);
@@ -131,13 +112,6 @@ template<typename MatrixType> void diagonalmatrices(const MatrixType& m)
   VERIFY_IS_APPROX( sq_m3 = v1.asDiagonal() + v2.asDiagonal(), sq_m1 + sq_m2);
   VERIFY_IS_APPROX( sq_m3 = v1.asDiagonal() - v2.asDiagonal(), sq_m1 - sq_m2);
   VERIFY_IS_APPROX( sq_m3 = v1.asDiagonal() - 2*v2.asDiagonal() + v1.asDiagonal(), sq_m1 - 2*sq_m2 + sq_m1);
-
-  // Zero and Identity
-  LeftDiagonalMatrix zero = LeftDiagonalMatrix::Zero(rows);
-  LeftDiagonalMatrix identity = LeftDiagonalMatrix::Identity(rows);
-  VERIFY_IS_APPROX(identity.diagonal().sum(), Scalar(rows));
-  VERIFY_IS_APPROX(zero.diagonal().sum(), Scalar(0));
-  VERIFY_IS_APPROX((zero + 2 * LeftDiagonalMatrix::Identity(rows)).diagonal().sum(), Scalar(2 * rows));
 }
 
 template<typename MatrixType> void as_scalar_product(const MatrixType& m)

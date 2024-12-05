@@ -12,9 +12,6 @@
 #ifndef EIGEN_LMPAR_H
 #define EIGEN_LMPAR_H
 
-// IWYU pragma: private
-#include "./InternalHeaderCheck.h"
-
 namespace Eigen {
 
 namespace internal {

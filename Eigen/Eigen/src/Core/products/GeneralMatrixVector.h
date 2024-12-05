@@ -10,9 +10,6 @@
 #ifndef EIGEN_GENERAL_MATRIX_VECTOR_H
 #define EIGEN_GENERAL_MATRIX_VECTOR_H
 
-// IWYU pragma: private
-#include "../InternalHeaderCheck.h"
-
 namespace Eigen {
 
 namespace internal {
@@ -32,42 +29,42 @@ struct gemv_packet_cond<GEMVPacketFull, T1, T2, T3> { typedef T1 type; };
 template <typename T1, typename T2, typename T3>
 struct gemv_packet_cond<GEMVPacketHalf, T1, T2, T3> { typedef T2 type; };
 
-template<typename LhsScalar, typename RhsScalar, int PacketSize_=GEMVPacketFull>
+template<typename LhsScalar, typename RhsScalar, int _PacketSize=GEMVPacketFull>
 class gemv_traits
 {
   typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType ResScalar;
 
-#define PACKET_DECL_COND_POSTFIX(postfix, name, packet_size)                        \
+#define PACKET_DECL_COND_PREFIX(prefix, name, packet_size)                        \
   typedef typename gemv_packet_cond<packet_size,                                  \
                                     typename packet_traits<name ## Scalar>::type, \
                                     typename packet_traits<name ## Scalar>::half, \
                                     typename unpacket_traits<typename packet_traits<name ## Scalar>::half>::half>::type \
-  name ## Packet ## postfix
+  prefix ## name ## Packet
 
-  PACKET_DECL_COND_POSTFIX(_, Lhs, PacketSize_);
-  PACKET_DECL_COND_POSTFIX(_, Rhs, PacketSize_);
-  PACKET_DECL_COND_POSTFIX(_, Res, PacketSize_);
-#undef PACKET_DECL_COND_POSTFIX
+  PACKET_DECL_COND_PREFIX(_, Lhs, _PacketSize);
+  PACKET_DECL_COND_PREFIX(_, Rhs, _PacketSize);
+  PACKET_DECL_COND_PREFIX(_, Res, _PacketSize);
+#undef PACKET_DECL_COND_PREFIX
 
 public:
   enum {
-        Vectorizable = unpacket_traits<LhsPacket_>::vectorizable &&
-        unpacket_traits<RhsPacket_>::vectorizable &&
-        int(unpacket_traits<LhsPacket_>::size)==int(unpacket_traits<RhsPacket_>::size),
-        LhsPacketSize = Vectorizable ? unpacket_traits<LhsPacket_>::size : 1,
-        RhsPacketSize = Vectorizable ? unpacket_traits<RhsPacket_>::size : 1,
-        ResPacketSize = Vectorizable ? unpacket_traits<ResPacket_>::size : 1
+        Vectorizable = unpacket_traits<_LhsPacket>::vectorizable &&
+        unpacket_traits<_RhsPacket>::vectorizable &&
+        int(unpacket_traits<_LhsPacket>::size)==int(unpacket_traits<_RhsPacket>::size),
+        LhsPacketSize = Vectorizable ? unpacket_traits<_LhsPacket>::size : 1,
+        RhsPacketSize = Vectorizable ? unpacket_traits<_RhsPacket>::size : 1,
+        ResPacketSize = Vectorizable ? unpacket_traits<_ResPacket>::size : 1
   };
 
-  typedef std::conditional_t<Vectorizable,LhsPacket_,LhsScalar> LhsPacket;
-  typedef std::conditional_t<Vectorizable,RhsPacket_,RhsScalar> RhsPacket;
-  typedef std::conditional_t<Vectorizable,ResPacket_,ResScalar> ResPacket;
+  typedef typename conditional<Vectorizable,_LhsPacket,LhsScalar>::type LhsPacket;
+  typedef typename conditional<Vectorizable,_RhsPacket,RhsScalar>::type RhsPacket;
+  typedef typename conditional<Vectorizable,_ResPacket,ResScalar>::type ResPacket;
 };
 
 
 /* Optimized col-major matrix * vector product:
  * This algorithm processes the matrix per vertical panels,
- * which are then processed horizontally per chunck of 8*PacketSize x 1 vertical segments.
+ * which are then processed horizontaly per chunck of 8*PacketSize x 1 vertical segments.
  *
  * Mixing type logic: C += alpha * A * B
  *  |  A  |  B  |alpha| comments
@@ -362,10 +359,6 @@ EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void general_matrix_vector_product<Index,Lhs
          HasQuarter = (int)ResPacketSizeQuarter < (int)ResPacketSizeHalf
   };
 
-  const Index fullColBlockEnd = LhsPacketSize * (cols / LhsPacketSize);
-  const Index halfColBlockEnd = LhsPacketSizeHalf * (cols / LhsPacketSizeHalf);
-  const Index quarterColBlockEnd = LhsPacketSizeQuarter * (cols / LhsPacketSizeQuarter);
-
   Index i=0;
   for(; i<n8; i+=8)
   {
@@ -378,7 +371,8 @@ EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void general_matrix_vector_product<Index,Lhs
               c6 = pset1<ResPacket>(ResScalar(0)),
               c7 = pset1<ResPacket>(ResScalar(0));
 
-    for (Index j = 0; j < fullColBlockEnd; j += LhsPacketSize)
+    Index j=0;
+    for(; j+LhsPacketSize<=cols; j+=LhsPacketSize)
     {
       RhsPacket b0 = rhs.template load<RhsPacket, Unaligned>(j,0);
 
@@ -399,8 +393,7 @@ EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void general_matrix_vector_product<Index,Lhs
     ResScalar cc5 = predux(c5);
     ResScalar cc6 = predux(c6);
     ResScalar cc7 = predux(c7);
-
-    for (Index j = fullColBlockEnd; j < cols; ++j)
+    for(; j<cols; ++j)
     {
       RhsScalar b0 = rhs(j,0);
 
@@ -429,7 +422,8 @@ EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void general_matrix_vector_product<Index,Lhs
               c2 = pset1<ResPacket>(ResScalar(0)),
               c3 = pset1<ResPacket>(ResScalar(0));
 
-    for (Index j = 0; j < fullColBlockEnd; j += LhsPacketSize)
+    Index j=0;
+    for(; j+LhsPacketSize<=cols; j+=LhsPacketSize)
     {
       RhsPacket b0 = rhs.template load<RhsPacket, Unaligned>(j,0);
 
@@ -442,8 +436,7 @@ EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void general_matrix_vector_product<Index,Lhs
     ResScalar cc1 = predux(c1);
     ResScalar cc2 = predux(c2);
     ResScalar cc3 = predux(c3);
-
-    for(Index j = fullColBlockEnd; j < cols; ++j)
+    for(; j<cols; ++j)
     {
       RhsScalar b0 = rhs(j,0);
 
@@ -462,7 +455,8 @@ EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void general_matrix_vector_product<Index,Lhs
     ResPacket c0 = pset1<ResPacket>(ResScalar(0)),
               c1 = pset1<ResPacket>(ResScalar(0));
 
-    for (Index j = 0; j < fullColBlockEnd; j += LhsPacketSize)
+    Index j=0;
+    for(; j+LhsPacketSize<=cols; j+=LhsPacketSize)
     {
       RhsPacket b0 = rhs.template load<RhsPacket, Unaligned>(j,0);
 
@@ -471,8 +465,7 @@ EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void general_matrix_vector_product<Index,Lhs
     }
     ResScalar cc0 = predux(c0);
     ResScalar cc1 = predux(c1);
-
-    for(Index j = fullColBlockEnd; j < cols; ++j)
+    for(; j<cols; ++j)
     {
       RhsScalar b0 = rhs(j,0);
 
@@ -487,15 +480,15 @@ EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void general_matrix_vector_product<Index,Lhs
     ResPacket c0 = pset1<ResPacket>(ResScalar(0));
     ResPacketHalf c0_h = pset1<ResPacketHalf>(ResScalar(0));
     ResPacketQuarter c0_q = pset1<ResPacketQuarter>(ResScalar(0));
-
-    for (Index j = 0; j < fullColBlockEnd; j += LhsPacketSize)
+    Index j=0;
+    for(; j+LhsPacketSize<=cols; j+=LhsPacketSize)
     {
       RhsPacket b0 = rhs.template load<RhsPacket,Unaligned>(j,0);
       c0 = pcj.pmadd(lhs.template load<LhsPacket,LhsAlignment>(i,j),b0,c0);
     }
     ResScalar cc0 = predux(c0);
     if (HasHalf) {
-      for (Index j = fullColBlockEnd; j < halfColBlockEnd; j += LhsPacketSizeHalf)
+      for(; j+LhsPacketSizeHalf<=cols; j+=LhsPacketSizeHalf)
         {
           RhsPacketHalf b0 = rhs.template load<RhsPacketHalf,Unaligned>(j,0);
           c0_h = pcj_half.pmadd(lhs.template load<LhsPacketHalf,LhsAlignment>(i,j),b0,c0_h);
@@ -503,14 +496,14 @@ EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void general_matrix_vector_product<Index,Lhs
       cc0 += predux(c0_h);
     }
     if (HasQuarter) {
-      for (Index j = halfColBlockEnd; j < quarterColBlockEnd; j += LhsPacketSizeQuarter)
+      for(; j+LhsPacketSizeQuarter<=cols; j+=LhsPacketSizeQuarter)
         {
           RhsPacketQuarter b0 = rhs.template load<RhsPacketQuarter,Unaligned>(j,0);
           c0_q = pcj_quarter.pmadd(lhs.template load<LhsPacketQuarter,LhsAlignment>(i,j),b0,c0_q);
         }
       cc0 += predux(c0_q);
     }
-    for (Index j = quarterColBlockEnd; j < cols; ++j)
+    for(; j<cols; ++j)
     {
       cc0 += cj.pmul(lhs(i,j), rhs(j,0));
     }

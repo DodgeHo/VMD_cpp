@@ -10,9 +10,6 @@
 #ifndef EIGEN_MATRIX_SQUARE_ROOT
 #define EIGEN_MATRIX_SQUARE_ROOT
 
-// IWYU pragma: private
-#include "./InternalHeaderCheck.h"
-
 namespace Eigen { 
 
 namespace internal {
@@ -339,7 +336,7 @@ template<typename Derived> class MatrixSquareRootReturnValue
     inline void evalTo(ResultType& result) const
     {
       typedef typename internal::nested_eval<Derived, 10>::type DerivedEvalType;
-      typedef internal::remove_all_t<DerivedEvalType> DerivedEvalTypeClean;
+      typedef typename internal::remove_all<DerivedEvalType>::type DerivedEvalTypeClean;
       DerivedEvalType tmp(m_src);
       internal::matrix_sqrt_compute<DerivedEvalTypeClean>::run(tmp, result);
     }

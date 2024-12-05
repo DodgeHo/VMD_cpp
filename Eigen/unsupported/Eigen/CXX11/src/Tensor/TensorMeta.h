@@ -10,9 +10,6 @@
 #ifndef EIGEN_CXX11_TENSOR_TENSOR_META_H
 #define EIGEN_CXX11_TENSOR_TENSOR_META_H
 
-// IWYU pragma: private
-#include "./InternalHeaderCheck.h"
-
 namespace Eigen {
 
 template<bool cond> struct Cond {};
@@ -27,6 +24,19 @@ const T2& choose(Cond<false>, const T1&, const T2& second) {
   return second;
 }
 
+
+template <typename T, typename X, typename Y>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
+T divup(const X x, const Y y) {
+  return static_cast<T>((x + y - 1) / y);
+}
+
+template <typename T>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
+T divup(const T x, const T y) {
+  return static_cast<T>((x + y - 1) / y);
+}
+
 template <size_t n> struct max_n_1 {
   static const size_t size = n;
 };
@@ -34,11 +44,6 @@ template <> struct max_n_1<0> {
   static const size_t size = 1;
 };
 
-template <typename T>
-EIGEN_DEPRECATED EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
-constexpr T divup(const T x, const T y) {
-  return Eigen::numext::div_ceil(x, y);
-}
 
 // Default packet types
 template <typename Scalar, typename Device>
@@ -47,7 +52,7 @@ struct PacketType : internal::packet_traits<Scalar> {
 };
 
 // For CUDA packet types when using a GpuDevice
-#if defined(EIGEN_USE_GPU) && defined(EIGEN_HAS_GPU_FP16) && defined(EIGEN_GPU_COMPILE_PHASE)
+#if defined(EIGEN_USE_GPU) && defined(EIGEN_HAS_GPU_FP16)
 
 typedef ulonglong2 Packet4h2;
 template<>
@@ -113,13 +118,13 @@ struct static_for<Index, end, end, step, StepOp> {
 
 template <typename OutScalar, typename Device, bool Vectorizable>
 struct Vectorise {
-  static constexpr int PacketSize = 1;
+  static const int PacketSize = 1;
   typedef OutScalar PacketReturnType;
 };
 
 template <typename OutScalar, typename Device>
 struct Vectorise<OutScalar, Device, true> {
-  static constexpr int PacketSize = Eigen::PacketType<OutScalar, Device>::size;
+  static const int PacketSize = Eigen::PacketType<OutScalar, Device>::size;
   typedef typename Eigen::PacketType<OutScalar, Device>::type PacketReturnType;
 };
 
@@ -157,6 +162,7 @@ struct PacketType<Scalar, SyclDevice> : internal::default_packet_traits {
     Vectorizable = 0,
     size = 1,
     AlignedOnScalar = 0,
+    HasHalfPacket = 0
   };
   enum {
     HasAdd    = 0,
@@ -201,11 +207,9 @@ template<> struct PacketType<const half, const SyclDevice>: PacketType<half, Syc
 #endif
 #endif
 
-// Pair mimics std::pair but works on e.g. nvcc.
-template <typename U, typename V> struct Pair {
+// Tuple mimics std::pair but works on e.g. nvcc.
+template <typename U, typename V> struct Tuple {
  public:
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-
   U first;
   V second;
 
@@ -213,13 +217,13 @@ template <typename U, typename V> struct Pair {
   typedef V second_type;
 
   EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-  Pair() : first(), second() {}
+  Tuple() : first(), second() {}
 
   EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-  Pair(const U& f, const V& s) : first(f), second(s) {}
+  Tuple(const U& f, const V& s) : first(f), second(s) {}
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-  void swap(Pair& rhs) {
+  void swap(Tuple& rhs) {
     using numext::swap;
     swap(first, rhs.first);
     swap(second, rhs.second);
@@ -228,13 +232,13 @@ template <typename U, typename V> struct Pair {
 
 template <typename U, typename V>
 EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-bool operator==(const Pair<U, V>& x, const Pair<U, V>& y) {
+bool operator==(const Tuple<U, V>& x, const Tuple<U, V>& y) {
   return (x.first == y.first && x.second == y.second);
 }
 
 template <typename U, typename V>
 EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-bool operator!=(const Pair<U, V>& x, const Pair<U, V>& y) {
+bool operator!=(const Tuple<U, V>& x, const Tuple<U, V>& y) {
   return !(x == y);
 }
 
@@ -254,12 +258,13 @@ template <typename Idx> struct IndexPair {
 };
 
 
+#ifdef EIGEN_HAS_SFINAE
 namespace internal {
 
-  template<typename IndexType, typename Index, Index First, Index... Is>
+  template<typename IndexType, typename Index, Index... Is>
   EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-  array<Index, 1 + sizeof...(Is)> customIndices2Array(IndexType& idx, numeric_list<Index, First, Is...>) {
-    return { static_cast<Index>(idx[First]), static_cast<Index>(idx[Is])... };
+  array<Index, sizeof...(Is)> customIndices2Array(IndexType& idx, numeric_list<Index, Is...>) {
+    return { idx[Is]... };
   }
   template<typename IndexType, typename Index>
   EIGEN_CONSTEXPR EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
@@ -297,6 +302,9 @@ namespace internal {
   };
 
 }
+#endif
+
+
 
 }  // namespace Eigen
 

@@ -10,10 +10,9 @@
 #ifndef EIGEN_CXX11_TENSOR_TENSOR_INITIALIZER_H
 #define EIGEN_CXX11_TENSOR_TENSOR_INITIALIZER_H
 
-#include <initializer_list>
+#if EIGEN_HAS_VARIADIC_TEMPLATES
 
-// IWYU pragma: private
-#include "./InternalHeaderCheck.h"
+#include <initializer_list>
 
 namespace Eigen {
 
@@ -77,5 +76,7 @@ void initialize_tensor(TensorEvaluator<Derived, DefaultDevice>& tensor,
 
 }  // namespace internal
 }  // namespace Eigen
+
+#endif  // EIGEN_HAS_VARIADIC_TEMPLATES
 
 #endif  // EIGEN_CXX11_TENSOR_TENSOR_INITIALIZER_H

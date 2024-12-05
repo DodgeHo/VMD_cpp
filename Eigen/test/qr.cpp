@@ -75,17 +75,15 @@ template<typename MatrixType> void qr_invertible()
   // now construct a matrix with prescribed determinant
   m1.setZero();
   for(int i = 0; i < size; i++) m1(i,i) = internal::random<Scalar>();
-  Scalar det = m1.diagonal().prod();
-  RealScalar absdet = abs(det);
+  RealScalar absdet = abs(m1.diagonal().prod());
   m3 = qr.householderQ(); // get a unitary
-  m1 = m3 * m1 * m3.adjoint();
+  m1 = m3 * m1 * m3;
   qr.compute(m1);
   VERIFY_IS_APPROX(log(absdet), qr.logAbsDeterminant());
   // This test is tricky if the determinant becomes too small.
   // Since we generate random numbers with magnitude range [0,1], the average determinant is 0.5^size
-  RealScalar tol = numext::maxi(RealScalar(pow(0.5,size)), numext::maxi<RealScalar>(abs(absdet), abs(qr.absDeterminant())));
-  VERIFY_IS_MUCH_SMALLER_THAN(abs(det - qr.determinant()), tol);
-  VERIFY_IS_MUCH_SMALLER_THAN(abs(absdet - qr.absDeterminant()), tol);
+  VERIFY_IS_MUCH_SMALLER_THAN( abs(absdet-qr.absDeterminant()), numext::maxi(RealScalar(pow(0.5,size)),numext::maxi<RealScalar>(abs(absdet),abs(qr.absDeterminant()))) );
+  
 }
 
 template<typename MatrixType> void qr_verify_assert()
@@ -98,7 +96,6 @@ template<typename MatrixType> void qr_verify_assert()
   VERIFY_RAISES_ASSERT(qr.transpose().solve(tmp))
   VERIFY_RAISES_ASSERT(qr.adjoint().solve(tmp))
   VERIFY_RAISES_ASSERT(qr.householderQ())
-  VERIFY_RAISES_ASSERT(qr.determinant())
   VERIFY_RAISES_ASSERT(qr.absDeterminant())
   VERIFY_RAISES_ASSERT(qr.logAbsDeterminant())
 }

@@ -10,25 +10,20 @@
 #ifndef EIGEN_REF_H
 #define EIGEN_REF_H
 
-// IWYU pragma: private
-#include "./InternalHeaderCheck.h"
-
 namespace Eigen {
 
 namespace internal {
 
-template<typename PlainObjectType_, int Options_, typename StrideType_>
-struct traits<Ref<PlainObjectType_, Options_, StrideType_> >
-  : public traits<Map<PlainObjectType_, Options_, StrideType_> >
+template<typename _PlainObjectType, int _Options, typename _StrideType>
+struct traits<Ref<_PlainObjectType, _Options, _StrideType> >
+  : public traits<Map<_PlainObjectType, _Options, _StrideType> >
 {
-  typedef PlainObjectType_ PlainObjectType;
-  typedef StrideType_ StrideType;
+  typedef _PlainObjectType PlainObjectType;
+  typedef _StrideType StrideType;
   enum {
-    Options = Options_,
-    Flags = traits<Map<PlainObjectType_, Options_, StrideType_> >::Flags | NestByRefBit,
-    Alignment = traits<Map<PlainObjectType_, Options_, StrideType_> >::Alignment,
-    InnerStrideAtCompileTime = traits<Map<PlainObjectType_, Options_, StrideType_> >::InnerStrideAtCompileTime,
-    OuterStrideAtCompileTime = traits<Map<PlainObjectType_, Options_, StrideType_> >::OuterStrideAtCompileTime
+    Options = _Options,
+    Flags = traits<Map<_PlainObjectType, _Options, _StrideType> >::Flags | NestByRefBit,
+    Alignment = traits<Map<_PlainObjectType, _Options, _StrideType> >::Alignment
   };
 
   template<typename Derived> struct match {
@@ -36,11 +31,11 @@ struct traits<Ref<PlainObjectType_, Options_, StrideType_> >
       IsVectorAtCompileTime = PlainObjectType::IsVectorAtCompileTime || Derived::IsVectorAtCompileTime,
       HasDirectAccess = internal::has_direct_access<Derived>::ret,
       StorageOrderMatch = IsVectorAtCompileTime || ((PlainObjectType::Flags&RowMajorBit)==(Derived::Flags&RowMajorBit)),
-      InnerStrideMatch = int(InnerStrideAtCompileTime)==int(Dynamic)
-                      || int(InnerStrideAtCompileTime)==int(Derived::InnerStrideAtCompileTime)
-                      || (int(InnerStrideAtCompileTime)==0 && int(Derived::InnerStrideAtCompileTime)==1),
+      InnerStrideMatch = int(StrideType::InnerStrideAtCompileTime)==int(Dynamic)
+                      || int(StrideType::InnerStrideAtCompileTime)==int(Derived::InnerStrideAtCompileTime)
+                      || (int(StrideType::InnerStrideAtCompileTime)==0 && int(Derived::InnerStrideAtCompileTime)==1),
       OuterStrideMatch = IsVectorAtCompileTime
-                      || int(OuterStrideAtCompileTime)==int(Dynamic) || int(OuterStrideAtCompileTime)==int(Derived::OuterStrideAtCompileTime),
+                      || int(StrideType::OuterStrideAtCompileTime)==int(Dynamic) || int(StrideType::OuterStrideAtCompileTime)==int(Derived::OuterStrideAtCompileTime),
       // NOTE, this indirection of evaluator<Derived>::Alignment is needed
       // to workaround a very strange bug in MSVC related to the instantiation
       // of has_*ary_operator in evaluator<CwiseNullaryOp>.
@@ -51,7 +46,7 @@ struct traits<Ref<PlainObjectType_, Options_, StrideType_> >
       ScalarTypeMatch = internal::is_same<typename PlainObjectType::Scalar, typename Derived::Scalar>::value,
       MatchAtCompileTime = HasDirectAccess && StorageOrderMatch && InnerStrideMatch && OuterStrideMatch && AlignmentMatch && ScalarTypeMatch
     };
-    typedef std::conditional_t<MatchAtCompileTime,internal::true_type,internal::false_type> type;
+    typedef typename internal::conditional<MatchAtCompileTime,internal::true_type,internal::false_type>::type type;
   };
 
 };
@@ -202,8 +197,8 @@ protected:
       return false;
     }
 
-    internal::construct_at<Base>(this, expr.data(), rows, cols);
-    internal::construct_at(&m_stride,
+    ::new (static_cast<Base*>(this)) Base(expr.data(), rows, cols);
+    ::new (&m_stride) StrideBase(
       (StrideType::OuterStrideAtCompileTime == 0) ? 0 : outer_stride,
       (StrideType::InnerStrideAtCompileTime == 0) ? 0 : inner_stride );
     return true;
@@ -290,7 +285,7 @@ template<typename PlainObjectType, int Options, typename StrideType> class Ref
     typedef internal::traits<Ref> Traits;
     template<typename Derived>
     EIGEN_DEVICE_FUNC inline Ref(const PlainObjectBase<Derived>& expr,
-                                 std::enable_if_t<bool(Traits::template match<Derived>::MatchAtCompileTime),Derived>* = 0);
+                                 typename internal::enable_if<bool(Traits::template match<Derived>::MatchAtCompileTime),Derived>::type* = 0);
   public:
 
     typedef RefBase<Ref> Base;
@@ -300,17 +295,17 @@ template<typename PlainObjectType, int Options, typename StrideType> class Ref
     #ifndef EIGEN_PARSED_BY_DOXYGEN
     template<typename Derived>
     EIGEN_DEVICE_FUNC inline Ref(PlainObjectBase<Derived>& expr,
-                                 std::enable_if_t<bool(Traits::template match<Derived>::MatchAtCompileTime),Derived>* = 0)
+                                 typename internal::enable_if<bool(Traits::template match<Derived>::MatchAtCompileTime),Derived>::type* = 0)
     {
       EIGEN_STATIC_ASSERT(bool(Traits::template match<Derived>::MatchAtCompileTime), STORAGE_LAYOUT_DOES_NOT_MATCH);
-      // Construction must pass since we will not create temporary storage in the non-const case.
+      // Construction must pass since we will not create temprary storage in the non-const case.
       const bool success = Base::construct(expr.derived());
       EIGEN_UNUSED_VARIABLE(success)
       eigen_assert(success);
     }
     template<typename Derived>
     EIGEN_DEVICE_FUNC inline Ref(const DenseBase<Derived>& expr,
-                                 std::enable_if_t<bool(Traits::template match<Derived>::MatchAtCompileTime),Derived>* = 0)
+                                 typename internal::enable_if<bool(Traits::template match<Derived>::MatchAtCompileTime),Derived>::type* = 0)
     #else
     /** Implicit constructor from any dense expression */
     template<typename Derived>
@@ -335,16 +330,6 @@ template<typename TPlainObjectType, int Options, typename StrideType> class Ref<
   : public RefBase<Ref<const TPlainObjectType, Options, StrideType> >
 {
     typedef internal::traits<Ref> Traits;
-
-    static constexpr bool may_map_m_object_successfully = 
-      (static_cast<int>(StrideType::InnerStrideAtCompileTime) == 0 ||
-       static_cast<int>(StrideType::InnerStrideAtCompileTime) == 1 ||
-       static_cast<int>(StrideType::InnerStrideAtCompileTime) == Dynamic) &&
-      (TPlainObjectType::IsVectorAtCompileTime ||
-       static_cast<int>(StrideType::OuterStrideAtCompileTime) == 0 ||
-       static_cast<int>(StrideType::OuterStrideAtCompileTime) == Dynamic ||
-       static_cast<int>(StrideType::OuterStrideAtCompileTime) == static_cast<int>(TPlainObjectType::InnerSizeAtCompileTime) ||
-       static_cast<int>(TPlainObjectType::InnerSizeAtCompileTime) == Dynamic);
   public:
 
     typedef RefBase<Ref> Base;
@@ -352,13 +337,11 @@ template<typename TPlainObjectType, int Options, typename StrideType> class Ref<
 
     template<typename Derived>
     EIGEN_DEVICE_FUNC inline Ref(const DenseBase<Derived>& expr,
-                                 std::enable_if_t<bool(Traits::template match<Derived>::ScalarTypeMatch),Derived>* = 0)
+                                 typename internal::enable_if<bool(Traits::template match<Derived>::ScalarTypeMatch),Derived>::type* = 0)
     {
 //      std::cout << match_helper<Derived>::HasDirectAccess << "," << match_helper<Derived>::OuterStrideMatch << "," << match_helper<Derived>::InnerStrideMatch << "\n";
 //      std::cout << int(StrideType::OuterStrideAtCompileTime) << " - " << int(Derived::OuterStrideAtCompileTime) << "\n";
 //      std::cout << int(StrideType::InnerStrideAtCompileTime) << " - " << int(Derived::InnerStrideAtCompileTime) << "\n";
-      EIGEN_STATIC_ASSERT(Traits::template match<Derived>::type::value || may_map_m_object_successfully,
-                          STORAGE_LAYOUT_DOES_NOT_MATCH);
       construct(expr.derived(), typename Traits::template match<Derived>::type());
     }
 
@@ -366,19 +349,8 @@ template<typename TPlainObjectType, int Options, typename StrideType> class Ref<
       // copy constructor shall not copy the m_object, to avoid unnecessary malloc and copy
     }
 
-    EIGEN_DEVICE_FUNC inline Ref(Ref&& other) {
-      if (other.data() == other.m_object.data()) {
-        m_object = std::move(other.m_object);
-        Base::construct(m_object);
-      }
-      else
-        Base::construct(other);
-    }
-
     template<typename OtherRef>
     EIGEN_DEVICE_FUNC inline Ref(const RefBase<OtherRef>& other) {
-      EIGEN_STATIC_ASSERT(Traits::template match<OtherRef>::type::value || may_map_m_object_successfully,
-                          STORAGE_LAYOUT_DOES_NOT_MATCH);
       construct(other.derived(), typename Traits::template match<OtherRef>::type());
     }
 
@@ -397,9 +369,7 @@ template<typename TPlainObjectType, int Options, typename StrideType> class Ref<
     EIGEN_DEVICE_FUNC void construct(const Expression& expr, internal::false_type)
     {
       internal::call_assignment_no_alias(m_object,expr,internal::assign_op<Scalar,Scalar>());
-      const bool success = Base::construct(m_object);
-      EIGEN_ONLY_USED_FOR_DEBUG(success)
-      eigen_assert(success);
+      Base::construct(m_object);
     }
 
   protected:

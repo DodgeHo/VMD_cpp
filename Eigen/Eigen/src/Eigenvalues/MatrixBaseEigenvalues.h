@@ -11,9 +11,6 @@
 #ifndef EIGEN_MATRIXBASEEIGENVALUES_H
 #define EIGEN_MATRIXBASEEIGENVALUES_H
 
-// IWYU pragma: private
-#include "./InternalHeaderCheck.h"
-
 namespace Eigen { 
 
 namespace internal {

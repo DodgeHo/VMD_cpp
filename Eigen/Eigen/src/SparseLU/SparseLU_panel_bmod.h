@@ -31,9 +31,6 @@
 #ifndef SPARSELU_PANEL_BMOD_H
 #define SPARSELU_PANEL_BMOD_H
 
-// IWYU pragma: private
-#include "./InternalHeaderCheck.h"
-
 namespace Eigen {
 namespace internal {
 
@@ -151,7 +148,8 @@ void SparseLUImpl<Scalar,StorageIndex>::panel_bmod(const Index m, const Index w,
       Index offset = (PacketSize-internal::first_default_aligned(B.data(), PacketSize)) % PacketSize;
       MappedMatrixBlock L(tempv.data()+w*ldu+offset, nrow, u_cols, OuterStride<>(ldl));
       
-      L.noalias() = B * U;
+      L.setZero();
+      internal::sparselu_gemm<Scalar>(L.rows(), L.cols(), B.cols(), B.data(), B.outerStride(), U.data(), U.outerStride(), L.data(), L.outerStride());
       
       // scatter U and L
       u_col = 0;

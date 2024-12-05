@@ -12,22 +12,19 @@
 
 #include "../../../../Eigen/Eigenvalues"
 
-// IWYU pragma: private
-#include "./InternalHeaderCheck.h"
-
 namespace Eigen { 
   
-template< typename MatrixType_,
-          typename Preconditioner_ = DiagonalPreconditioner<typename MatrixType_::Scalar> >
+template< typename _MatrixType,
+          typename _Preconditioner = DiagonalPreconditioner<typename _MatrixType::Scalar> >
 class DGMRES;
 
 namespace internal {
 
-template< typename MatrixType_, typename Preconditioner_>
-struct traits<DGMRES<MatrixType_,Preconditioner_> >
+template< typename _MatrixType, typename _Preconditioner>
+struct traits<DGMRES<_MatrixType,_Preconditioner> >
 {
-  typedef MatrixType_ MatrixType;
-  typedef Preconditioner_ Preconditioner;
+  typedef _MatrixType MatrixType;
+  typedef _Preconditioner Preconditioner;
 };
 
 /** \brief Computes a permutation vector to have a sorted sequence
@@ -71,8 +68,8 @@ void sortWithPermutation (VectorType& vec, IndexType& perm, typename IndexType::
  * the IncompleteLUT for instance. The preconditioner is applied 
  * at right of the matrix and the combination is multiplicative.
  * 
- * \tparam MatrixType_ the type of the sparse matrix A, can be a dense or a sparse matrix.
- * \tparam Preconditioner_ the type of the preconditioner. Default is DiagonalPreconditioner
+ * \tparam _MatrixType the type of the sparse matrix A, can be a dense or a sparse matrix.
+ * \tparam _Preconditioner the type of the preconditioner. Default is DiagonalPreconditioner
  * Typical usage :
  * \code
  * SparseMatrix<double> A;
@@ -100,8 +97,8 @@ void sortWithPermutation (VectorType& vec, IndexType& perm, typename IndexType::
 
  * 
  */
-template< typename MatrixType_, typename Preconditioner_>
-class DGMRES : public IterativeSolverBase<DGMRES<MatrixType_,Preconditioner_> >
+template< typename _MatrixType, typename _Preconditioner>
+class DGMRES : public IterativeSolverBase<DGMRES<_MatrixType,_Preconditioner> >
 {
     typedef IterativeSolverBase<DGMRES> Base;
     using Base::matrix;
@@ -113,11 +110,11 @@ class DGMRES : public IterativeSolverBase<DGMRES<MatrixType_,Preconditioner_> >
   public:
     using Base::_solve_impl;
     using Base::_solve_with_guess_impl;
-    typedef MatrixType_ MatrixType;
+    typedef _MatrixType MatrixType;
     typedef typename MatrixType::Scalar Scalar;
     typedef typename MatrixType::StorageIndex StorageIndex;
     typedef typename MatrixType::RealScalar RealScalar;
-    typedef Preconditioner_ Preconditioner;
+    typedef _Preconditioner Preconditioner;
     typedef Matrix<Scalar,Dynamic,Dynamic> DenseMatrix; 
     typedef Matrix<RealScalar,Dynamic,Dynamic> DenseRealMatrix; 
     typedef Matrix<Scalar,Dynamic,1> DenseVector;
@@ -226,9 +223,9 @@ class DGMRES : public IterativeSolverBase<DGMRES<MatrixType_,Preconditioner_> >
  * A right preconditioner is used combined with deflation.
  * 
  */
-template< typename MatrixType_, typename Preconditioner_>
+template< typename _MatrixType, typename _Preconditioner>
 template<typename Rhs, typename Dest>
-void DGMRES<MatrixType_, Preconditioner_>::dgmres(const MatrixType& mat,const Rhs& rhs, Dest& x,
+void DGMRES<_MatrixType, _Preconditioner>::dgmres(const MatrixType& mat,const Rhs& rhs, Dest& x,
               const Preconditioner& precond) const
 {
   const RealScalar considerAsZero = (std::numeric_limits<RealScalar>::min)();
@@ -284,9 +281,9 @@ void DGMRES<MatrixType_, Preconditioner_>::dgmres(const MatrixType& mat,const Rh
  * \param normRhs The norm of the right hand side vector
  * \param nbIts The number of iterations
  */
-template< typename MatrixType_, typename Preconditioner_>
+template< typename _MatrixType, typename _Preconditioner>
 template<typename Dest>
-Index DGMRES<MatrixType_, Preconditioner_>::dgmresCycle(const MatrixType& mat, const Preconditioner& precond, Dest& x, DenseVector& r0, RealScalar& beta, const RealScalar& normRhs, Index& nbIts) const
+Index DGMRES<_MatrixType, _Preconditioner>::dgmresCycle(const MatrixType& mat, const Preconditioner& precond, Dest& x, DenseVector& r0, RealScalar& beta, const RealScalar& normRhs, Index& nbIts) const
 {
   //Initialization 
   DenseVector g(m_restart+1); // Right hand side of the least square problem
@@ -377,8 +374,8 @@ Index DGMRES<MatrixType_, Preconditioner_>::dgmresCycle(const MatrixType& mat, c
 }
 
 
-template< typename MatrixType_, typename Preconditioner_>
-void DGMRES<MatrixType_, Preconditioner_>::dgmresInitDeflation(Index& rows) const
+template< typename _MatrixType, typename _Preconditioner>
+void DGMRES<_MatrixType, _Preconditioner>::dgmresInitDeflation(Index& rows) const
 {
   m_U.resize(rows, m_maxNeig);
   m_MU.resize(rows, m_maxNeig); 
@@ -387,14 +384,14 @@ void DGMRES<MatrixType_, Preconditioner_>::dgmresInitDeflation(Index& rows) cons
   m_isDeflAllocated = true; 
 }
 
-template< typename MatrixType_, typename Preconditioner_>
-inline typename DGMRES<MatrixType_, Preconditioner_>::ComplexVector DGMRES<MatrixType_, Preconditioner_>::schurValues(const ComplexSchur<DenseMatrix>& schurofH) const
+template< typename _MatrixType, typename _Preconditioner>
+inline typename DGMRES<_MatrixType, _Preconditioner>::ComplexVector DGMRES<_MatrixType, _Preconditioner>::schurValues(const ComplexSchur<DenseMatrix>& schurofH) const
 {
   return schurofH.matrixT().diagonal();
 }
 
-template< typename MatrixType_, typename Preconditioner_>
-inline typename DGMRES<MatrixType_, Preconditioner_>::ComplexVector DGMRES<MatrixType_, Preconditioner_>::schurValues(const RealSchur<DenseMatrix>& schurofH) const
+template< typename _MatrixType, typename _Preconditioner>
+inline typename DGMRES<_MatrixType, _Preconditioner>::ComplexVector DGMRES<_MatrixType, _Preconditioner>::schurValues(const RealSchur<DenseMatrix>& schurofH) const
 {
   const DenseMatrix& T = schurofH.matrixT();
   Index it = T.rows();
@@ -418,11 +415,11 @@ inline typename DGMRES<MatrixType_, Preconditioner_>::ComplexVector DGMRES<Matri
   return eig;
 }
 
-template< typename MatrixType_, typename Preconditioner_>
-Index DGMRES<MatrixType_, Preconditioner_>::dgmresComputeDeflationData(const MatrixType& mat, const Preconditioner& precond, const Index& it, StorageIndex& neig) const
+template< typename _MatrixType, typename _Preconditioner>
+Index DGMRES<_MatrixType, _Preconditioner>::dgmresComputeDeflationData(const MatrixType& mat, const Preconditioner& precond, const Index& it, StorageIndex& neig) const
 {
   // First, find the Schur form of the Hessenberg matrix H
-  std::conditional_t<NumTraits<Scalar>::IsComplex, ComplexSchur<DenseMatrix>, RealSchur<DenseMatrix> > schurofH;
+  typename internal::conditional<NumTraits<Scalar>::IsComplex, ComplexSchur<DenseMatrix>, RealSchur<DenseMatrix> >::type schurofH; 
   bool computeU = true;
   DenseMatrix matrixQ(it,it); 
   matrixQ.setIdentity();
@@ -501,9 +498,9 @@ Index DGMRES<MatrixType_, Preconditioner_>::dgmresComputeDeflationData(const Mat
   m_isDeflInitialized = true;
   return 0; 
 }
-template<typename MatrixType_, typename Preconditioner_>
+template<typename _MatrixType, typename _Preconditioner>
 template<typename RhsType, typename DestType>
-Index DGMRES<MatrixType_, Preconditioner_>::dgmresApplyDeflation(const RhsType &x, DestType &y) const
+Index DGMRES<_MatrixType, _Preconditioner>::dgmresApplyDeflation(const RhsType &x, DestType &y) const
 {
   DenseVector x1 = m_U.leftCols(m_r).transpose() * x; 
   y = x + m_U.leftCols(m_r) * ( m_lambdaN * m_luT.solve(x1) - x1);

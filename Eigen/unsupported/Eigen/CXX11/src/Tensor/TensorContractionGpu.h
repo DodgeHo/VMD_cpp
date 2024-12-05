@@ -14,9 +14,6 @@
 
 #if defined(EIGEN_USE_GPU) && defined(EIGEN_GPUCC)
 
-// IWYU pragma: private
-#include "./InternalHeaderCheck.h"
-
 namespace Eigen {
 
 template<typename Scalar, typename Index, typename LhsMapper,
@@ -236,7 +233,7 @@ EigenContractionKernelInternal(const LhsMapper lhs, const RhsMapper rhs,
     }                                                           \
   }                                                             \
 
-#define writeRegToShmem()                       \
+#define writeRegToShmem(_)                      \
   lhs_shmem[lhs_store_idx_0] = lhs_pf0;         \
   rhs_shmem[rhs_store_idx_0] = rhs_pf0;         \
                                                 \
@@ -1228,25 +1225,29 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
   typedef TensorContractionEvaluatorBase<Self> Base;
 
   typedef TensorContractionOp<Indices, LeftArgType, RightArgType, OutputKernelType> XprType;
-  typedef std::remove_const_t<typename XprType::Scalar> Scalar;
+  typedef typename internal::remove_const<typename XprType::Scalar>::type Scalar;
   typedef typename XprType::Index Index;
   typedef typename XprType::CoeffReturnType CoeffReturnType;
   typedef typename PacketType<CoeffReturnType, GpuDevice>::type PacketReturnType;
 
-  static constexpr int Layout = TensorEvaluator<LeftArgType, Device>::Layout;
+  enum {
+    Layout = TensorEvaluator<LeftArgType, Device>::Layout,
+  };
 
   // Most of the code is assuming that both input tensors are ColMajor. If the
   // inputs are RowMajor, we will "cheat" by swapping the LHS and RHS:
   // If we want to compute A * B = C, where A is LHS and B is RHS, the code
   // will pretend B is LHS and A is RHS.
-  typedef std::conditional_t<Layout == static_cast<int>(ColMajor), LeftArgType, RightArgType> EvalLeftArgType;
-  typedef std::conditional_t<Layout == static_cast<int>(ColMajor), RightArgType, LeftArgType> EvalRightArgType;
+  typedef typename internal::conditional<
+    static_cast<int>(Layout) == static_cast<int>(ColMajor), LeftArgType, RightArgType>::type EvalLeftArgType;
+  typedef typename internal::conditional<
+    static_cast<int>(Layout) == static_cast<int>(ColMajor), RightArgType, LeftArgType>::type EvalRightArgType;
 
-  static constexpr int LDims =
+  static const int LDims =
       internal::array_size<typename TensorEvaluator<EvalLeftArgType, Device>::Dimensions>::value;
-  static constexpr int RDims =
+  static const int RDims =
       internal::array_size<typename TensorEvaluator<EvalRightArgType, Device>::Dimensions>::value;
-  static constexpr int ContractDims = internal::array_size<Indices>::value;
+  static const int ContractDims = internal::array_size<Indices>::value;
 
   typedef array<Index, LDims> left_dim_mapper_t;
   typedef array<Index, RDims> right_dim_mapper_t;
@@ -1255,13 +1256,13 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
   typedef array<Index, LDims - ContractDims> left_nocontract_t;
   typedef array<Index, RDims - ContractDims> right_nocontract_t;
 
-  static constexpr int NumDims = LDims + RDims - 2 * ContractDims;
+  static const int NumDims = LDims + RDims - 2 * ContractDims;
 
   typedef DSizes<Index, NumDims> Dimensions;
 
   // typedefs needed in evalTo
-  typedef std::remove_const_t<typename EvalLeftArgType::Scalar> LhsScalar;
-  typedef std::remove_const_t<typename EvalRightArgType::Scalar> RhsScalar;
+  typedef typename internal::remove_const<typename EvalLeftArgType::Scalar>::type LhsScalar;
+  typedef typename internal::remove_const<typename EvalRightArgType::Scalar>::type RhsScalar;
 
   typedef TensorEvaluator<EvalLeftArgType, Device> LeftEvaluator;
   typedef TensorEvaluator<EvalRightArgType, Device> RightEvaluator;
@@ -1369,8 +1370,8 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     // columns in right side
     const Index n = this->m_j_size;
 
-    // zero out the result buffer (which must be of size at least m * n * sizeof(Scalar))
-    this->m_device.fill(buffer, buffer + m * n, Scalar(0));
+    // zero out the result buffer (which must be of size at least m * n * sizeof(Scalar)
+    this->m_device.memset(buffer, 0, m * n * sizeof(Scalar));
 
     typedef internal::TensorContractionInputMapper<LhsScalar, Index, internal::Lhs,
                                                    LeftEvaluator, left_nocontract_t,

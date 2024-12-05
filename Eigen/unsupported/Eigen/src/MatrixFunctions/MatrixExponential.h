@@ -13,9 +13,6 @@
 
 #include "StemFunction.h"
 
-// IWYU pragma: private
-#include "./InternalHeaderCheck.h"
-
 namespace Eigen {
 namespace internal {
 

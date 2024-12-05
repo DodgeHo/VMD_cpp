@@ -219,8 +219,14 @@ template <typename Device, typename T> class BenchmarkSuite {
     size_b[1] = m_;
     TensorMap<Tensor<T, 2>, Eigen::Aligned> B(b_, size_b);
 
+#if defined(EIGEN_HAS_INDEX_LIST)
     Eigen::IndexPairList<Eigen::type2indexpair<0, 0>,
                          Eigen::type2indexpair<2, 1> > paddings;
+#else
+    Eigen::array<Eigen::IndexPair<TensorIndex>, 2> paddings;
+    paddings[0] = Eigen::IndexPair<TensorIndex>(0, 0);
+    paddings[1] = Eigen::IndexPair<TensorIndex>(2, 1);
+#endif
 #ifdef EIGEN_USE_SYCL // warmup for sycl
     for (int iter = 0; iter < 10; ++iter) {
       B.device(device_) = A.pad(paddings);
@@ -245,7 +251,15 @@ template <typename Device, typename T> class BenchmarkSuite {
     size_b[1] = k_/2;
     TensorMap<Tensor<T, 2>, Eigen::Aligned> B(b_, size_b);
 
+#ifndef EIGEN_HAS_INDEX_LIST
+    Eigen::array<TensorIndex, 2> strides;
+    strides[0] = 1;
+    strides[1] = 2;
+#else
+    // Take advantage of cxx11 to give the compiler information it can use to
+    // optimize the code.
     Eigen::IndexList<Eigen::type2index<1>, Eigen::type2index<2> > strides;
+#endif
 
 #ifdef EIGEN_USE_SYCL // warmup for sycl
     for (int iter = 0; iter < 10; ++iter) {
@@ -270,8 +284,17 @@ template <typename Device, typename T> class BenchmarkSuite {
     size_c[0] = m_;
     size_c[1] = n_;
     TensorMap<Tensor<T, 2>, Eigen::Aligned> C(c_, size_c);
+
+#ifndef EIGEN_HAS_INDEX_LIST
+    Eigen::array<int, 2> broadcast;
+    broadcast[0] = 1;
+    broadcast[1] = n_;
+#else
+    // Take advantage of cxx11 to give the compiler information it can use to
+    // optimize the code.
     Eigen::IndexList<Eigen::type2index<1>, int> broadcast;
     broadcast.set(1, n_);
+#endif
 
 #ifdef EIGEN_USE_SYCL // warmup for sycl
     for (int iter = 0; iter < 10; ++iter) {
@@ -362,7 +385,15 @@ for (int iter = 0; iter < 10; ++iter) {
     Eigen::array<TensorIndex, 1> output_size;
     output_size[0] = n_;
     TensorMap<Tensor<T, 1, 0, TensorIndex>, Eigen::Aligned> C(c_, output_size);
+
+#ifndef EIGEN_HAS_INDEX_LIST
+    Eigen::array<TensorIndex, 1> sum_along_dim;
+    sum_along_dim[0] = 0;
+#else
+    // Take advantage of cxx11 to give the compiler information it can use to
+    // optimize the code.
     Eigen::IndexList<Eigen::type2index<0>> sum_along_dim;
+#endif
 #ifdef EIGEN_USE_SYCL // warmup for sycl
   for (int iter = 0; iter < 10; ++iter) {
     C.device(device_) = B.sum(sum_along_dim);
@@ -533,9 +564,9 @@ for (int iter = 0; iter < 10; ++iter) {
 
     // Initialize the content of the memory pools to prevent asan from
     // complaining.
-    device_.fill(a_, a_ + m_ * k_, T(12));
-    device_.fill(b_, b_ + k_ * n_, T(23));
-    device_.fill(c_, c_ + m_ * n_, T(31));
+    device_.memset(a_, 12, m_ * k_ * sizeof(T));
+    device_.memset(b_, 23, k_ * n_ * sizeof(T));
+    device_.memset(c_, 31, m_ * n_ * sizeof(T));
 
   }
 

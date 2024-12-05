@@ -43,6 +43,7 @@ static void test_simple_reshape()
 
 template <typename>
 static void test_static_reshape() {
+#if defined(EIGEN_HAS_INDEX_LIST)
   using Eigen::type2index;
 
   Tensor<float, 5> tensor(2, 3, 1, 7, 1);
@@ -59,6 +60,7 @@ static void test_static_reshape() {
       }
     }
   }
+#endif
 }
 
 template <typename>

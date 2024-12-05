@@ -10,9 +10,6 @@
 #ifndef EIGEN_PACKET_MATH_GPU_H
 #define EIGEN_PACKET_MATH_GPU_H
 
-// IWYU pragma: private
-#include "../../InternalHeaderCheck.h"
-
 namespace Eigen {
 
 namespace internal {
@@ -47,6 +44,7 @@ template<> struct packet_traits<float> : default_packet_traits
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size=4,
+    HasHalfPacket = 0,
 
     HasDiv  = 1,
     HasSin  = 0,
@@ -82,6 +80,7 @@ template<> struct packet_traits<double> : default_packet_traits
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size=2,
+    HasHalfPacket = 0,
 
     HasDiv  = 1,
     HasLog  = 1,
@@ -122,6 +121,7 @@ template<> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double2 pset1<double2>(const do
 // invoked by NVCC’ (e.g. on MacOS). The former needs to see both host and device implementation
 // of the functions, while the latter can only deal with one of them.
 #if defined(EIGEN_CUDA_ARCH) || defined(EIGEN_HIPCC) || (defined(EIGEN_CUDACC) && EIGEN_COMP_CLANG && !EIGEN_COMP_NVCC)
+namespace {
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float bitwise_and(const float& a,
                                                         const float& b) {
@@ -175,21 +175,12 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float lt_mask(const float& a,
                                                     const float& b) {
   return __int_as_float(a < b ? 0xffffffffu : 0u);
 }
-
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double lt_mask(const double& a,
                                                      const double& b) {
   return __longlong_as_double(a < b ? 0xffffffffffffffffull : 0ull);
 }
 
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float le_mask(const float& a,
-                                                    const float& b) {
-  return __int_as_float(a <= b ? 0xffffffffu : 0u);
-}
-
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double le_mask(const double& a,
-                                                     const double& b) {
-  return __longlong_as_double(a <= b ? 0xffffffffffffffffull : 0ull);
-}
+}  // namespace
 
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float4 pand<float4>(const float4& a,
@@ -252,12 +243,6 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float4 pcmp_lt<float4>(const float4& a,
                      lt_mask(a.w, b.w));
 }
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float4 pcmp_le<float4>(const float4& a,
-                                                             const float4& b) {
-  return make_float4(le_mask(a.x, b.x), le_mask(a.y, b.y), le_mask(a.z, b.z),
-                     le_mask(a.w, b.w));
-}
-template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double2
 pcmp_eq<double2>(const double2& a, const double2& b) {
   return make_double2(eq_mask(a.x, b.x), eq_mask(a.y, b.y));
@@ -266,11 +251,6 @@ template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double2
 pcmp_lt<double2>(const double2& a, const double2& b) {
   return make_double2(lt_mask(a.x, b.x), lt_mask(a.y, b.y));
-}
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double2
-pcmp_le<double2>(const double2& a, const double2& b) {
-  return make_double2(le_mask(a.x, b.x), le_mask(a.y, b.y));
 }
 #endif // defined(EIGEN_CUDA_ARCH) || defined(EIGEN_HIPCC) || (defined(EIGEN_CUDACC) && EIGEN_COMP_CLANG && !EIGEN_COMP_NVCC)
 
@@ -378,7 +358,7 @@ template<> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void pstoreu<double>(double* to
 template<>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE float4 ploadt_ro<float4, Aligned>(const float* from) {
 #if defined(EIGEN_GPU_HAS_LDG)
-  return __ldg(reinterpret_cast<const float4*>(from));
+  return __ldg((const float4*)from);
 #else
   return make_float4(from[0], from[1], from[2], from[3]);
 #endif
@@ -386,7 +366,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE float4 ploadt_ro<float4, Aligned>(const fl
 template<>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE double2 ploadt_ro<double2, Aligned>(const double* from) {
 #if defined(EIGEN_GPU_HAS_LDG)
-  return __ldg(reinterpret_cast<const double2*>(from));
+  return __ldg((const double2*)from);
 #else
   return make_double2(from[0], from[1]);
 #endif
@@ -513,10 +493,9 @@ ptranspose(PacketBlock<double2,2>& kernel) {
 
 #endif // defined(EIGEN_GPUCC) && defined(EIGEN_USE_GPU)
 
-// Half-packet functions are not available on the host for CUDA 9.0-9.2, only
-// on device. There is no benefit to using them on the host anyways, since they are
-// emulated.
-#if (defined(EIGEN_HAS_CUDA_FP16) || defined(EIGEN_HAS_HIP_FP16)) && defined(EIGEN_GPU_COMPILE_PHASE)
+// Packet4h2 must be defined in the macro without EIGEN_CUDA_ARCH, meaning
+// its corresponding packet_traits<Eigen::half> must be visible on host.
+#if defined(EIGEN_HAS_CUDA_FP16) || defined(EIGEN_HAS_HIP_FP16)
 
 typedef ulonglong2 Packet4h2;
 template<> struct unpacket_traits<Packet4h2> { typedef Eigen::half type; enum {size=8, alignment=Aligned16, vectorizable=true, masked_load_available=false, masked_store_available=false}; typedef Packet4h2 half; };
@@ -533,6 +512,7 @@ template<> struct packet_traits<Eigen::half> : default_packet_traits
     Vectorizable = 1,
     AlignedOnScalar = 1,
     size=8,
+    HasHalfPacket = 0,
     HasAdd    = 1,
     HasSub    = 1,
     HasMul    = 1,
@@ -546,9 +526,42 @@ template<> struct packet_traits<Eigen::half> : default_packet_traits
   };
 };
 
+namespace {
+// This is equivalent to make_half2, which is undocumented and doesn't seem to always exist.
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 combine_half(const __half& a, const __half& b) {
+#if defined(EIGEN_GPU_COMPILE_PHASE)
+  return __halves2half2(a, b);
+#else
+  // Round-about way since __halves2half2 is a __device__ function.
+  return __floats2half2_rn(__half2float(a), __half2float(b));
+#endif
+}
+
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE __half get_half2_low(const half2& a) {
+#if defined(EIGEN_GPU_COMPILE_PHASE)
+  return __low2half(a);
+#else
+  return __float2half(__low2float(a));
+#endif
+}
+
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE __half get_half2_high(const half2& a) {
+#if defined(EIGEN_GPU_COMPILE_PHASE)
+  return __high2half(a);
+#else
+  return __float2half(__high2float(a));
+#endif
+}
+} // namespace
+
 template<>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pset1<half2>(const Eigen::half& from) {
+#if defined(EIGEN_GPU_COMPILE_PHASE)
   return __half2half2(from);
+#else
+  const float f = __half2float(from);
+  return __floats2half2_rn(f, f);
+#endif
 }
 
 template <>
@@ -563,6 +576,8 @@ pset1<Packet4h2>(const Eigen::half& from) {
   return r;
 }
 
+// We now need this visible on both host and device.
+// #if defined(EIGEN_CUDA_ARCH) || defined(EIGEN_HIPCC) || (defined(EIGEN_CUDACC) && EIGEN_COMP_CLANG && !EIGEN_COMP_NVCC)
 namespace {
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pload(const Eigen::half* from) {
@@ -570,11 +585,11 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pload(const Eigen::half* from) {
 }
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 ploadu(const Eigen::half* from) {
-  return __halves2half2(from[0], from[1]);
+  return combine_half(from[0], from[1]);
 }
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 ploaddup(const Eigen::half*  from) {
-  return __halves2half2(from[0], from[0]);
+  return combine_half(from[0], from[0]);
 }
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void pstore(Eigen::half* to,
@@ -584,8 +599,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void pstore(Eigen::half* to,
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void pstoreu(Eigen::half* to,
                                                    const half2& from) {
-  to[0] = __low2half(from);
-  to[1] = __high2half(from);
+  to[0] = get_half2_low(from);
+  to[1] = get_half2_high(from);
 }
 
 
@@ -595,7 +610,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE half2 ploadt_ro_aligned(
   // Input is guaranteed to be properly aligned.
   return __ldg(reinterpret_cast<const half2*>(from));
 #else
-  return __halves2half2(*(from+0), *(from+1));
+  return combine_half(*(from+0), *(from+1));
 #endif
 }
 
@@ -604,31 +619,31 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE half2 ploadt_ro_unaligned(
 #if defined(EIGEN_GPU_HAS_LDG)
   return __halves2half2(__ldg(from+0), __ldg(from+1));
 #else
-  return __halves2half2(*(from+0), *(from+1));
+  return combine_half(*(from+0), *(from+1));
 #endif
 }
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pgather(const Eigen::half* from,
                                                     Index stride) {
-  return __halves2half2(from[0*stride], from[1*stride]);
+  return combine_half(from[0*stride], from[1*stride]);
 }
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void pscatter(
     Eigen::half* to, const half2& from, Index stride) {
-  to[stride*0] = __low2half(from);
-  to[stride*1] = __high2half(from);
+  to[stride*0] = get_half2_low(from);
+  to[stride*1] = get_half2_high(from);
 }
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Eigen::half pfirst(const half2& a) {
-  return __low2half(a);
+  return get_half2_low(a);
 }
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pabs(const half2& a) {
-  half a1 = __low2half(a);
-  half a2 = __high2half(a);
+  half a1 = get_half2_low(a);
+  half a2 = get_half2_high(a);
   half result1 = half_impl::raw_uint16_to_half(a1.x & 0x7FFF);
   half result2 = half_impl::raw_uint16_to_half(a2.x & 0x7FFF);
-  return __halves2half2(result1, result2);
+  return combine_half(result1, result2);
 }
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 ptrue(const half2& /*a*/) {
@@ -643,12 +658,12 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pzero(const half2& /*a*/) {
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void
 ptranspose(PacketBlock<half2,2>& kernel) {
-  __half a1 = __low2half(kernel.packet[0]);
-  __half a2 = __high2half(kernel.packet[0]);
-  __half b1 = __low2half(kernel.packet[1]);
-  __half b2 = __high2half(kernel.packet[1]);
-  kernel.packet[0] = __halves2half2(a1, b1);
-  kernel.packet[1] = __halves2half2(a2, b2);
+  __half a1 = get_half2_low(kernel.packet[0]);
+  __half a2 = get_half2_high(kernel.packet[0]);
+  __half b1 = get_half2_low(kernel.packet[1]);
+  __half b2 = get_half2_high(kernel.packet[1]);
+  kernel.packet[0] = combine_half(a1, b1);
+  kernel.packet[1] = combine_half(a2, b2);
 }
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 plset(const Eigen::half& a) {
@@ -656,101 +671,88 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 plset(const Eigen::half& a) {
   return __halves2half2(a, __hadd(a, __float2half(1.0f)));
 #else
   float f = __half2float(a) + 1.0f;
-  return __halves2half2(a, __float2half(f));
+  return combine_half(a, __float2half(f));
 #endif
 }
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pselect(const half2& mask,
                                                     const half2& a,
                                                     const half2& b) {
-  half mask_low = __low2half(mask);
-  half mask_high = __high2half(mask);
-  half result_low = mask_low == half(0) ? __low2half(b) : __low2half(a);
-  half result_high = mask_high == half(0) ? __high2half(b) : __high2half(a);
-  return __halves2half2(result_low, result_high);
+  half mask_low = get_half2_low(mask);
+  half mask_high = get_half2_high(mask);
+  half result_low = mask_low == half(0) ? get_half2_low(b) : get_half2_low(a);
+  half result_high = mask_high == half(0) ? get_half2_high(b) : get_half2_high(a);
+  return combine_half(result_low, result_high);
 }
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pcmp_eq(const half2& a,
                                                     const half2& b) {
   half true_half = half_impl::raw_uint16_to_half(0xffffu);
   half false_half = half_impl::raw_uint16_to_half(0x0000u);
-  half a1 = __low2half(a);
-  half a2 = __high2half(a);
-  half b1 = __low2half(b);
-  half b2 = __high2half(b);
+  half a1 = get_half2_low(a);
+  half a2 = get_half2_high(a);
+  half b1 = get_half2_low(b);
+  half b2 = get_half2_high(b);
   half eq1 = __half2float(a1) == __half2float(b1) ? true_half : false_half;
   half eq2 = __half2float(a2) == __half2float(b2) ? true_half : false_half;
-  return __halves2half2(eq1, eq2);
+  return combine_half(eq1, eq2);
 }
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pcmp_lt(const half2& a,
                                                     const half2& b) {
   half true_half = half_impl::raw_uint16_to_half(0xffffu);
   half false_half = half_impl::raw_uint16_to_half(0x0000u);
-  half a1 = __low2half(a);
-  half a2 = __high2half(a);
-  half b1 = __low2half(b);
-  half b2 = __high2half(b);
+  half a1 = get_half2_low(a);
+  half a2 = get_half2_high(a);
+  half b1 = get_half2_low(b);
+  half b2 = get_half2_high(b);
   half eq1 = __half2float(a1) < __half2float(b1) ? true_half : false_half;
   half eq2 = __half2float(a2) < __half2float(b2) ? true_half : false_half;
-  return __halves2half2(eq1, eq2);
-}
-
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pcmp_le(const half2& a,
-                                                    const half2& b) {
-  half true_half = half_impl::raw_uint16_to_half(0xffffu);
-  half false_half = half_impl::raw_uint16_to_half(0x0000u);
-  half a1 = __low2half(a);
-  half a2 = __high2half(a);
-  half b1 = __low2half(b);
-  half b2 = __high2half(b);
-  half eq1 = __half2float(a1) <= __half2float(b1) ? true_half : false_half;
-  half eq2 = __half2float(a2) <= __half2float(b2) ? true_half : false_half;
-  return __halves2half2(eq1, eq2);
+  return combine_half(eq1, eq2);
 }
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pand(const half2& a,
                                                  const half2& b) {
-  half a1 = __low2half(a);
-  half a2 = __high2half(a);
-  half b1 = __low2half(b);
-  half b2 = __high2half(b);
+  half a1 = get_half2_low(a);
+  half a2 = get_half2_high(a);
+  half b1 = get_half2_low(b);
+  half b2 = get_half2_high(b);
   half result1 = half_impl::raw_uint16_to_half(a1.x & b1.x);
   half result2 = half_impl::raw_uint16_to_half(a2.x & b2.x);
-  return __halves2half2(result1, result2);
+  return combine_half(result1, result2);
 }
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 por(const half2& a,
                                                 const half2& b) {
-  half a1 = __low2half(a);
-  half a2 = __high2half(a);
-  half b1 = __low2half(b);
-  half b2 = __high2half(b);
+  half a1 = get_half2_low(a);
+  half a2 = get_half2_high(a);
+  half b1 = get_half2_low(b);
+  half b2 = get_half2_high(b);
   half result1 = half_impl::raw_uint16_to_half(a1.x | b1.x);
   half result2 = half_impl::raw_uint16_to_half(a2.x | b2.x);
-  return __halves2half2(result1, result2);
+  return combine_half(result1, result2);
 }
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pxor(const half2& a,
                                                  const half2& b) {
-  half a1 = __low2half(a);
-  half a2 = __high2half(a);
-  half b1 = __low2half(b);
-  half b2 = __high2half(b);
+  half a1 = get_half2_low(a);
+  half a2 = get_half2_high(a);
+  half b1 = get_half2_low(b);
+  half b2 = get_half2_high(b);
   half result1 = half_impl::raw_uint16_to_half(a1.x ^ b1.x);
   half result2 = half_impl::raw_uint16_to_half(a2.x ^ b2.x);
-  return __halves2half2(result1, result2);
+  return combine_half(result1, result2);
 }
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pandnot(const half2& a,
                                                     const half2& b) {
-  half a1 = __low2half(a);
-  half a2 = __high2half(a);
-  half b1 = __low2half(b);
-  half b2 = __high2half(b);
+  half a1 = get_half2_low(a);
+  half a2 = get_half2_high(a);
+  half b1 = get_half2_low(b);
+  half b2 = get_half2_high(b);
   half result1 = half_impl::raw_uint16_to_half(a1.x & ~b1.x);
   half result2 = half_impl::raw_uint16_to_half(a2.x & ~b2.x);
-  return __halves2half2(result1, result2);
+  return combine_half(result1, result2);
 }
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 padd(const half2& a,
@@ -849,9 +851,9 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pmin(const half2& a,
   float a2 = __high2float(a);
   float b1 = __low2float(b);
   float b2 = __high2float(b);
-  __half r1 = a1 < b1 ? __low2half(a) : __low2half(b);
-  __half r2 = a2 < b2 ? __high2half(a) : __high2half(b);
-  return __halves2half2(r1, r2);
+  __half r1 = a1 < b1 ? get_half2_low(a) : get_half2_low(b);
+  __half r2 = a2 < b2 ? get_half2_high(a) : get_half2_high(b);
+  return combine_half(r1, r2);
 }
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pmax(const half2& a,
@@ -860,9 +862,9 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pmax(const half2& a,
   float a2 = __high2float(a);
   float b1 = __low2float(b);
   float b2 = __high2float(b);
-  __half r1 = a1 > b1 ? __low2half(a) : __low2half(b);
-  __half r2 = a2 > b2 ? __high2half(a) : __high2half(b);
-  return __halves2half2(r1, r2);
+  __half r1 = a1 > b1 ? get_half2_low(a) : get_half2_low(b);
+  __half r2 = a2 > b2 ? get_half2_high(a) : get_half2_high(b);
+  return combine_half(r1, r2);
 }
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Eigen::half predux(const half2& a) {
@@ -883,7 +885,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Eigen::half predux_max(const half2& a) {
 #else
   float a1 = __low2float(a);
   float a2 = __high2float(a);
-  return a1 > a2 ? __low2half(a) : __high2half(a);
+  return a1 > a2 ? get_half2_low(a) : get_half2_high(a);
 #endif
 }
 
@@ -895,7 +897,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Eigen::half predux_min(const half2& a) {
 #else
   float a1 = __low2float(a);
   float a2 = __high2float(a);
-  return a1 < a2 ? __low2half(a) : __high2half(a);
+  return a1 < a2 ? get_half2_low(a) : get_half2_high(a);
 #endif
 }
 
@@ -1066,10 +1068,10 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4h2
 pgather<Eigen::half, Packet4h2>(const Eigen::half* from, Index stride) {
   Packet4h2 r;
   half2* p_alias = reinterpret_cast<half2*>(&r);
-  p_alias[0] = __halves2half2(from[0 * stride], from[1 * stride]);
-  p_alias[1] = __halves2half2(from[2 * stride], from[3 * stride]);
-  p_alias[2] = __halves2half2(from[4 * stride], from[5 * stride]);
-  p_alias[3] = __halves2half2(from[6 * stride], from[7 * stride]);
+  p_alias[0] = combine_half(from[0 * stride], from[1 * stride]);
+  p_alias[1] = combine_half(from[2 * stride], from[3 * stride]);
+  p_alias[2] = combine_half(from[4 * stride], from[5 * stride]);
+  p_alias[3] = combine_half(from[6 * stride], from[7 * stride]);
   return r;
 }
 
@@ -1150,12 +1152,12 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose_half2(
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void
 ptranspose_half(half2& f0, half2& f1) {
-  __half a1 = __low2half(f0);
-  __half a2 = __high2half(f0);
-  __half b1 = __low2half(f1);
-  __half b2 = __high2half(f1);
-  f0 = __halves2half2(a1, b1);
-  f1 = __halves2half2(a2, b2);
+  __half a1 = get_half2_low(f0);
+  __half a2 = get_half2_high(f0);
+  __half b1 = get_half2_low(f1);
+  __half b2 = get_half2_high(f1);
+  f0 = combine_half(a1, b1);
+  f1 = combine_half(a2, b2);
 }
 
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void
@@ -1252,10 +1254,10 @@ plset<Packet4h2>(const Eigen::half& a) {
   float f = __half2float(a);
   Packet4h2 r;
   half2* p_alias = reinterpret_cast<half2*>(&r);
-  p_alias[0] = __halves2half2(a, __float2half(f + 1.0f));
-  p_alias[1] = __halves2half2(__float2half(f + 2.0f), __float2half(f + 3.0f));
-  p_alias[2] = __halves2half2(__float2half(f + 4.0f), __float2half(f + 5.0f));
-  p_alias[3] = __halves2half2(__float2half(f + 6.0f), __float2half(f + 7.0f));
+  p_alias[0] = combine_half(a, __float2half(f + 1.0f));
+  p_alias[1] = combine_half(__float2half(f + 2.0f), __float2half(f + 3.0f));
+  p_alias[2] = combine_half(__float2half(f + 4.0f), __float2half(f + 5.0f));
+  p_alias[3] = combine_half(__float2half(f + 6.0f), __float2half(f + 7.0f));
   return r;
 #endif
 }
@@ -1287,34 +1289,6 @@ pcmp_eq<Packet4h2>(const Packet4h2& a, const Packet4h2& b) {
   r_alias[1] = pcmp_eq(a_alias[1], b_alias[1]);
   r_alias[2] = pcmp_eq(a_alias[2], b_alias[2]);
   r_alias[3] = pcmp_eq(a_alias[3], b_alias[3]);
-  return r;
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4h2
-pcmp_lt<Packet4h2>(const Packet4h2& a, const Packet4h2& b) {
-  Packet4h2 r;
-  half2* r_alias = reinterpret_cast<half2*>(&r);
-  const half2* a_alias = reinterpret_cast<const half2*>(&a);
-  const half2* b_alias = reinterpret_cast<const half2*>(&b);
-  r_alias[0] = pcmp_lt(a_alias[0], b_alias[0]);
-  r_alias[1] = pcmp_lt(a_alias[1], b_alias[1]);
-  r_alias[2] = pcmp_lt(a_alias[2], b_alias[2]);
-  r_alias[3] = pcmp_lt(a_alias[3], b_alias[3]);
-  return r;
-}
-
-template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4h2
-pcmp_le<Packet4h2>(const Packet4h2& a, const Packet4h2& b) {
-  Packet4h2 r;
-  half2* r_alias = reinterpret_cast<half2*>(&r);
-  const half2* a_alias = reinterpret_cast<const half2*>(&a);
-  const half2* b_alias = reinterpret_cast<const half2*>(&b);
-  r_alias[0] = pcmp_le(a_alias[0], b_alias[0]);
-  r_alias[1] = pcmp_le(a_alias[1], b_alias[1]);
-  r_alias[2] = pcmp_le(a_alias[2], b_alias[2]);
-  r_alias[3] = pcmp_le(a_alias[3], b_alias[3]);
   return r;
 }
 
@@ -1503,9 +1477,9 @@ template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Eigen::half predux_max<Packet4h2>(
     const Packet4h2& a) {
   const half2* a_alias = reinterpret_cast<const half2*>(&a);
-  half2 m0 = __halves2half2(predux_max(a_alias[0]),
+  half2 m0 = combine_half(predux_max(a_alias[0]),
                             predux_max(a_alias[1]));
-  half2 m1 = __halves2half2(predux_max(a_alias[2]),
+  half2 m1 = combine_half(predux_max(a_alias[2]),
                             predux_max(a_alias[3]));
   __half first  = predux_max(m0);
   __half second = predux_max(m1);
@@ -1522,9 +1496,9 @@ template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Eigen::half predux_min<Packet4h2>(
     const Packet4h2& a) {
   const half2* a_alias = reinterpret_cast<const half2*>(&a);
-  half2 m0 = __halves2half2(predux_min(a_alias[0]),
+  half2 m0 = combine_half(predux_min(a_alias[0]),
                             predux_min(a_alias[1]));
-  half2 m1 = __halves2half2(predux_min(a_alias[2]),
+  half2 m1 = combine_half(predux_min(a_alias[2]),
                             predux_min(a_alias[3]));
   __half first  = predux_min(m0);
   __half second = predux_min(m1);
@@ -1678,9 +1652,9 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pmin<half2>(const half2& a,
   float a2 = __high2float(a);
   float b1 = __low2float(b);
   float b2 = __high2float(b);
-  __half r1 = a1 < b1 ? __low2half(a) : __low2half(b);
-  __half r2 = a2 < b2 ? __high2half(a) : __high2half(b);
-  return __halves2half2(r1, r2);
+  __half r1 = a1 < b1 ? get_half2_low(a) : get_half2_low(b);
+  __half r2 = a2 < b2 ? get_half2_high(a) : get_half2_high(b);
+  return combine_half(r1, r2);
 }
 
 template<>
@@ -1690,12 +1664,14 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pmax<half2>(const half2& a,
   float a2 = __high2float(a);
   float b1 = __low2float(b);
   float b2 = __high2float(b);
-  __half r1 = a1 > b1 ? __low2half(a) : __low2half(b);
-  __half r2 = a2 > b2 ? __high2half(a) : __high2half(b);
-  return __halves2half2(r1, r2);
+  __half r1 = a1 > b1 ? get_half2_low(a) : get_half2_low(b);
+  __half r2 = a2 > b2 ? get_half2_high(a) : get_half2_high(b);
+  return combine_half(r1, r2);
 }
 
-#endif // (defined(EIGEN_HAS_CUDA_FP16) || defined(EIGEN_HAS_HIP_FP16)) && defined(EIGEN_GPU_COMPILE_PHASE)
+// #endif // defined(EIGEN_CUDA_ARCH) || defined(EIGEN_HIPCC) || (defined(EIGEN_CUDACC) && EIGEN_COMP_CLANG && !EIGEN_COMP_NVCC)
+
+#endif // defined(EIGEN_HAS_CUDA_FP16) || defined(EIGEN_HAS_HIP_FP16)
 
 #undef EIGEN_GPU_HAS_LDG
 #undef EIGEN_CUDA_HAS_FP16_ARITHMETIC

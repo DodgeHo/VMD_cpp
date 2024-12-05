@@ -11,9 +11,6 @@
 #ifndef EIGEN_REALSVD2X2_H
 #define EIGEN_REALSVD2X2_H
 
-// IWYU pragma: private
-#include "./InternalHeaderCheck.h"
-
 namespace Eigen {
 
 namespace internal {

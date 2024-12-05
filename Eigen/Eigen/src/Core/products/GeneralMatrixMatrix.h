@@ -10,14 +10,11 @@
 #ifndef EIGEN_GENERAL_MATRIX_MATRIX_H
 #define EIGEN_GENERAL_MATRIX_MATRIX_H
 
-// IWYU pragma: private
-#include "../InternalHeaderCheck.h"
-
 namespace Eigen {
 
 namespace internal {
 
-template<typename LhsScalar_, typename RhsScalar_> class level3_blocking;
+template<typename _LhsScalar, typename _RhsScalar> class level3_blocking;
 
 /* Specialization for a row-major destination matrix => simple transposition of the product */
 template<
@@ -62,9 +59,9 @@ typedef gebp_traits<LhsScalar,RhsScalar> Traits;
 
 typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType ResScalar;
 static void run(Index rows, Index cols, Index depth,
-  const LhsScalar* lhs_, Index lhsStride,
-  const RhsScalar* rhs_, Index rhsStride,
-  ResScalar* res_, Index resIncr, Index resStride,
+  const LhsScalar* _lhs, Index lhsStride,
+  const RhsScalar* _rhs, Index rhsStride,
+  ResScalar* _res, Index resIncr, Index resStride,
   ResScalar alpha,
   level3_blocking<LhsScalar,RhsScalar>& blocking,
   GemmParallelInfo<Index>* info = 0)
@@ -72,9 +69,9 @@ static void run(Index rows, Index cols, Index depth,
   typedef const_blas_data_mapper<LhsScalar, Index, LhsStorageOrder> LhsMapper;
   typedef const_blas_data_mapper<RhsScalar, Index, RhsStorageOrder> RhsMapper;
   typedef blas_data_mapper<typename Traits::ResScalar, Index, ColMajor,Unaligned,ResInnerStride> ResMapper;
-  LhsMapper lhs(lhs_, lhsStride);
-  RhsMapper rhs(rhs_, rhsStride);
-  ResMapper res(res_, resStride, resIncr);
+  LhsMapper lhs(_lhs, lhsStride);
+  RhsMapper rhs(_rhs, rhsStride);
+  ResMapper res(_res, resStride, resIncr);
 
   Index kc = blocking.kc();                   // cache block size along the K direction
   Index mc = (std::min)(rows,blocking.mc());  // cache block size along the M direction
@@ -84,12 +81,12 @@ static void run(Index rows, Index cols, Index depth,
   gemm_pack_rhs<RhsScalar, Index, RhsMapper, Traits::nr, RhsStorageOrder> pack_rhs;
   gebp_kernel<LhsScalar, RhsScalar, Index, ResMapper, Traits::mr, Traits::nr, ConjugateLhs, ConjugateRhs> gebp;
 
-#if defined(EIGEN_HAS_OPENMP) || defined(EIGEN_GEMM_THREADPOOL)
+#ifdef EIGEN_HAS_OPENMP
   if(info)
   {
     // this is the parallel version!
-    int tid = info->logical_thread_id;
-    int threads = info->num_threads;
+    int tid = omp_get_thread_num();
+    int threads = omp_get_num_threads();
 
     LhsScalar* blockA = blocking.blockA();
     eigen_internal_assert(blockA!=0);
@@ -110,15 +107,15 @@ static void run(Index rows, Index cols, Index depth,
       // each thread packs the sub block A_k,i to A'_i where i is the thread id.
 
       // However, before copying to A'_i, we have to make sure that no other thread is still using it,
-      // i.e., we test that info->task_info[tid].users equals 0.
-      // Then, we set info->task_info[tid].users to the number of threads to mark that all other threads are going to use it.
-      while(info->task_info[tid].users!=0) {}
-      info->task_info[tid].users = threads;
+      // i.e., we test that info[tid].users equals 0.
+      // Then, we set info[tid].users to the number of threads to mark that all other threads are going to use it.
+      while(info[tid].users!=0) {}
+      info[tid].users = threads;
 
-      pack_lhs(blockA+info->task_info[tid].lhs_start*actual_kc, lhs.getSubMapper(info->task_info[tid].lhs_start,k), actual_kc, info->task_info[tid].lhs_length);
+      pack_lhs(blockA+info[tid].lhs_start*actual_kc, lhs.getSubMapper(info[tid].lhs_start,k), actual_kc, info[tid].lhs_length);
 
       // Notify the other threads that the part A'_i is ready to go.
-      info->task_info[tid].sync = k;
+      info[tid].sync = k;
 
       // Computes C_i += A' * B' per A'_i
       for(int shift=0; shift<threads; ++shift)
@@ -129,10 +126,11 @@ static void run(Index rows, Index cols, Index depth,
         // we use testAndSetOrdered to mimic a volatile access.
         // However, no need to wait for the B' part which has been updated by the current thread!
         if (shift>0) {
-          while(info->task_info[i].sync!=k) {}
+          while(info[i].sync!=k) {
+          }
         }
 
-        gebp(res.getSubMapper(info->task_info[i].lhs_start, 0), blockA+info->task_info[i].lhs_start*actual_kc, blockB, info->task_info[i].lhs_length, actual_kc, nc, alpha);
+        gebp(res.getSubMapper(info[i].lhs_start, 0), blockA+info[i].lhs_start*actual_kc, blockB, info[i].lhs_length, actual_kc, nc, alpha);
       }
 
       // Then keep going as usual with the remaining B'
@@ -150,11 +148,14 @@ static void run(Index rows, Index cols, Index depth,
       // Release all the sub blocks A'_i of A' for the current thread,
       // i.e., we simply decrement the number of users by 1
       for(Index i=0; i<threads; ++i)
-        info->task_info[i].users -= 1;
+#if !EIGEN_HAS_CXX11_ATOMIC
+        #pragma omp atomic
+#endif
+        info[i].users -= 1;
     }
   }
   else
-#endif // defined(EIGEN_HAS_OPENMP) || defined(EIGEN_GEMM_THREADPOOL)
+#endif // EIGEN_HAS_OPENMP
   {
     EIGEN_UNUSED_VARIABLE(info);
 
@@ -246,11 +247,11 @@ struct gemm_functor
 template<int StorageOrder, typename LhsScalar, typename RhsScalar, int MaxRows, int MaxCols, int MaxDepth, int KcFactor=1,
 bool FiniteAtCompileTime = MaxRows!=Dynamic && MaxCols!=Dynamic && MaxDepth != Dynamic> class gemm_blocking_space;
 
-template<typename LhsScalar_, typename RhsScalar_>
+template<typename _LhsScalar, typename _RhsScalar>
 class level3_blocking
 {
-    typedef LhsScalar_ LhsScalar;
-    typedef RhsScalar_ RhsScalar;
+    typedef _LhsScalar LhsScalar;
+    typedef _RhsScalar RhsScalar;
 
   protected:
     LhsScalar* m_blockA;
@@ -274,19 +275,20 @@ class level3_blocking
     inline RhsScalar* blockB() { return m_blockB; }
 };
 
-template<int StorageOrder, typename LhsScalar_, typename RhsScalar_, int MaxRows, int MaxCols, int MaxDepth, int KcFactor>
-class gemm_blocking_space<StorageOrder,LhsScalar_,RhsScalar_,MaxRows, MaxCols, MaxDepth, KcFactor, true /* == FiniteAtCompileTime */>
+template<int StorageOrder, typename _LhsScalar, typename _RhsScalar, int MaxRows, int MaxCols, int MaxDepth, int KcFactor>
+class gemm_blocking_space<StorageOrder,_LhsScalar,_RhsScalar,MaxRows, MaxCols, MaxDepth, KcFactor, true /* == FiniteAtCompileTime */>
   : public level3_blocking<
-      std::conditional_t<StorageOrder==RowMajor,RhsScalar_,LhsScalar_>,
-      std::conditional_t<StorageOrder==RowMajor,LhsScalar_,RhsScalar_>>
+      typename conditional<StorageOrder==RowMajor,_RhsScalar,_LhsScalar>::type,
+      typename conditional<StorageOrder==RowMajor,_LhsScalar,_RhsScalar>::type>
 {
     enum {
       Transpose = StorageOrder==RowMajor,
       ActualRows = Transpose ? MaxCols : MaxRows,
       ActualCols = Transpose ? MaxRows : MaxCols
     };
-    typedef std::conditional_t<Transpose,RhsScalar_,LhsScalar_> LhsScalar;
-    typedef std::conditional_t<Transpose,LhsScalar_,RhsScalar_> RhsScalar;
+    typedef typename conditional<Transpose,_RhsScalar,_LhsScalar>::type LhsScalar;
+    typedef typename conditional<Transpose,_LhsScalar,_RhsScalar>::type RhsScalar;
+    typedef gebp_traits<LhsScalar,RhsScalar> Traits;
     enum {
       SizeA = ActualRows * MaxDepth,
       SizeB = ActualCols * MaxDepth
@@ -311,8 +313,8 @@ class gemm_blocking_space<StorageOrder,LhsScalar_,RhsScalar_,MaxRows, MaxCols, M
       this->m_blockA = m_staticA;
       this->m_blockB = m_staticB;
 #else
-      this->m_blockA = reinterpret_cast<LhsScalar*>((std::uintptr_t(m_staticA) + (EIGEN_DEFAULT_ALIGN_BYTES-1)) & ~std::size_t(EIGEN_DEFAULT_ALIGN_BYTES-1));
-      this->m_blockB = reinterpret_cast<RhsScalar*>((std::uintptr_t(m_staticB) + (EIGEN_DEFAULT_ALIGN_BYTES-1)) & ~std::size_t(EIGEN_DEFAULT_ALIGN_BYTES-1));
+      this->m_blockA = reinterpret_cast<LhsScalar*>((internal::UIntPtr(m_staticA) + (EIGEN_DEFAULT_ALIGN_BYTES-1)) & ~std::size_t(EIGEN_DEFAULT_ALIGN_BYTES-1));
+      this->m_blockB = reinterpret_cast<RhsScalar*>((internal::UIntPtr(m_staticB) + (EIGEN_DEFAULT_ALIGN_BYTES-1)) & ~std::size_t(EIGEN_DEFAULT_ALIGN_BYTES-1));
 #endif
     }
 
@@ -324,17 +326,18 @@ class gemm_blocking_space<StorageOrder,LhsScalar_,RhsScalar_,MaxRows, MaxCols, M
     inline void allocateAll() {}
 };
 
-template<int StorageOrder, typename LhsScalar_, typename RhsScalar_, int MaxRows, int MaxCols, int MaxDepth, int KcFactor>
-class gemm_blocking_space<StorageOrder,LhsScalar_,RhsScalar_,MaxRows, MaxCols, MaxDepth, KcFactor, false>
+template<int StorageOrder, typename _LhsScalar, typename _RhsScalar, int MaxRows, int MaxCols, int MaxDepth, int KcFactor>
+class gemm_blocking_space<StorageOrder,_LhsScalar,_RhsScalar,MaxRows, MaxCols, MaxDepth, KcFactor, false>
   : public level3_blocking<
-      std::conditional_t<StorageOrder==RowMajor,RhsScalar_,LhsScalar_>,
-      std::conditional_t<StorageOrder==RowMajor,LhsScalar_,RhsScalar_>>
+      typename conditional<StorageOrder==RowMajor,_RhsScalar,_LhsScalar>::type,
+      typename conditional<StorageOrder==RowMajor,_LhsScalar,_RhsScalar>::type>
 {
     enum {
       Transpose = StorageOrder==RowMajor
     };
-    typedef std::conditional_t<Transpose,RhsScalar_,LhsScalar_> LhsScalar;
-    typedef std::conditional_t<Transpose,LhsScalar_,RhsScalar_> RhsScalar;
+    typedef typename conditional<Transpose,_RhsScalar,_LhsScalar>::type LhsScalar;
+    typedef typename conditional<Transpose,_LhsScalar,_RhsScalar>::type RhsScalar;
+    typedef gebp_traits<LhsScalar,RhsScalar> Traits;
 
     Index m_sizeA;
     Index m_sizeB;
@@ -413,14 +416,14 @@ struct generic_product_impl<Lhs,Rhs,DenseShape,DenseShape,GemmProduct>
 
   typedef internal::blas_traits<Lhs> LhsBlasTraits;
   typedef typename LhsBlasTraits::DirectLinearAccessType ActualLhsType;
-  typedef internal::remove_all_t<ActualLhsType> ActualLhsTypeCleaned;
+  typedef typename internal::remove_all<ActualLhsType>::type ActualLhsTypeCleaned;
 
   typedef internal::blas_traits<Rhs> RhsBlasTraits;
   typedef typename RhsBlasTraits::DirectLinearAccessType ActualRhsType;
-  typedef internal::remove_all_t<ActualRhsType> ActualRhsTypeCleaned;
+  typedef typename internal::remove_all<ActualRhsType>::type ActualRhsTypeCleaned;
 
   enum {
-    MaxDepthAtCompileTime = min_size_prefer_fixed(Lhs::MaxColsAtCompileTime, Rhs::MaxRowsAtCompileTime)
+    MaxDepthAtCompileTime = EIGEN_SIZE_MIN_PREFER_FIXED(Lhs::MaxColsAtCompileTime,Rhs::MaxRowsAtCompileTime)
   };
 
   typedef generic_product_impl<Lhs,Rhs,DenseShape,DenseShape,CoeffBasedProductMode> lazyproduct;
@@ -483,8 +486,8 @@ struct generic_product_impl<Lhs,Rhs,DenseShape,DenseShape,GemmProduct>
         ::scaleAndAddTo(dst_vec, a_lhs.row(0), a_rhs, alpha);
     }
 
-    add_const_on_value_type_t<ActualLhsType> lhs = LhsBlasTraits::extract(a_lhs);
-    add_const_on_value_type_t<ActualRhsType> rhs = RhsBlasTraits::extract(a_rhs);
+    typename internal::add_const_on_value_type<ActualLhsType>::type lhs = LhsBlasTraits::extract(a_lhs);
+    typename internal::add_const_on_value_type<ActualRhsType>::type rhs = RhsBlasTraits::extract(a_rhs);
 
     Scalar actualAlpha = combine_scalar_factors(alpha, a_lhs, a_rhs);
 

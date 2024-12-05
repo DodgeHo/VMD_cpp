@@ -13,9 +13,6 @@
 #ifndef EIGEN_HYBRIDNONLINEARSOLVER_H
 #define EIGEN_HYBRIDNONLINEARSOLVER_H
 
-// IWYU pragma: private
-#include "./InternalHeaderCheck.h"
-
 namespace Eigen { 
 
 namespace HybridNonLinearSolverSpace { 
@@ -431,7 +428,7 @@ HybridNonLinearSolver<FunctorType,Scalar>::solveNumericalDiffOneStep(FVectorType
     using std::sqrt;
     using std::abs;
     
-    eigen_assert(x.size()==n); // check the caller is not cheating us
+    assert(x.size()==n); // check the caller is not cheating us
 
     Index j;
     std::vector<JacobiRotation<Scalar> > v_givens(n), w_givens(n);

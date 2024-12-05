@@ -11,9 +11,6 @@
 #ifndef EIGEN_IO_H
 #define EIGEN_IO_H
 
-// IWYU pragma: private
-#include "./InternalHeaderCheck.h"
-
 namespace Eigen { 
 
 enum { DontAlignCols = 1 };
@@ -118,13 +115,13 @@ namespace internal {
 
 // NOTE: This helper is kept for backward compatibility with previous code specializing
 //       this internal::significant_decimals_impl structure. In the future we should directly
-//       call max_digits10().
+//       call digits10() which has been introduced in July 2016 in 3.3.
 template<typename Scalar>
 struct significant_decimals_impl
 {
   static inline int run()
   {
-    return NumTraits<Scalar>::max_digits10();
+    return NumTraits<Scalar>::digits10();
   }
 };
 
@@ -134,6 +131,7 @@ template<typename Derived>
 std::ostream & print_matrix(std::ostream & s, const Derived& _m, const IOFormat& fmt)
 {
   using internal::is_same;
+  using internal::conditional;
 
   if(_m.size() == 0)
   {
@@ -143,21 +141,22 @@ std::ostream & print_matrix(std::ostream & s, const Derived& _m, const IOFormat&
   
   typename Derived::Nested m = _m;
   typedef typename Derived::Scalar Scalar;
-  typedef std::conditional_t<
+  typedef typename
+      conditional<
           is_same<Scalar, char>::value ||
             is_same<Scalar, unsigned char>::value ||
             is_same<Scalar, numext::int8_t>::value ||
             is_same<Scalar, numext::uint8_t>::value,
           int,
-          std::conditional_t<
+          typename conditional<
               is_same<Scalar, std::complex<char> >::value ||
                 is_same<Scalar, std::complex<unsigned char> >::value ||
                 is_same<Scalar, std::complex<numext::int8_t> >::value ||
                 is_same<Scalar, std::complex<numext::uint8_t> >::value,
               std::complex<int>,
               const Scalar&
-            >
-        > PrintType;
+            >::type
+        >::type PrintType;
 
   Index width = 0;
 
@@ -252,11 +251,6 @@ std::ostream & operator <<
  const DenseBase<Derived> & m)
 {
   return internal::print_matrix(s, m.eval(), EIGEN_DEFAULT_IO_FORMAT);
-}
-
-template <typename Derived>
-std::ostream& operator<<(std::ostream& s, const DiagonalBase<Derived>& m) {
-  return internal::print_matrix(s, m.derived(), EIGEN_DEFAULT_IO_FORMAT);
 }
 
 } // end namespace Eigen

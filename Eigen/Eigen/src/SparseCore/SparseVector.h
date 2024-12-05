@@ -10,9 +10,6 @@
 #ifndef EIGEN_SPARSEVECTOR_H
 #define EIGEN_SPARSEVECTOR_H
 
-// IWYU pragma: private
-#include "./InternalHeaderCheck.h"
-
 namespace Eigen { 
 
 /** \ingroup SparseCore_Module
@@ -20,7 +17,7 @@ namespace Eigen {
   *
   * \brief a sparse vector class
   *
-  * \tparam Scalar_ the scalar type, i.e. the type of the coefficients
+  * \tparam _Scalar the scalar type, i.e. the type of the coefficients
   *
   * See http://www.netlib.org/linalg/html_templates/node91.html for details on the storage scheme.
   *
@@ -29,21 +26,21 @@ namespace Eigen {
   */
 
 namespace internal {
-template<typename Scalar_, int Options_, typename StorageIndex_>
-struct traits<SparseVector<Scalar_, Options_, StorageIndex_> >
+template<typename _Scalar, int _Options, typename _StorageIndex>
+struct traits<SparseVector<_Scalar, _Options, _StorageIndex> >
 {
-  typedef Scalar_ Scalar;
-  typedef StorageIndex_ StorageIndex;
+  typedef _Scalar Scalar;
+  typedef _StorageIndex StorageIndex;
   typedef Sparse StorageKind;
   typedef MatrixXpr XprKind;
   enum {
-    IsColVector = (Options_ & RowMajorBit) ? 0 : 1,
+    IsColVector = (_Options & RowMajorBit) ? 0 : 1,
 
     RowsAtCompileTime = IsColVector ? Dynamic : 1,
     ColsAtCompileTime = IsColVector ? 1 : Dynamic,
     MaxRowsAtCompileTime = RowsAtCompileTime,
     MaxColsAtCompileTime = ColsAtCompileTime,
-    Flags = Options_ | NestByRefBit | LvalueBit | (IsColVector ? 0 : RowMajorBit) | CompressedAccessBit,
+    Flags = _Options | NestByRefBit | LvalueBit | (IsColVector ? 0 : RowMajorBit) | CompressedAccessBit,
     SupportedAccessPatterns = InnerRandomAccessPattern
   };
 };
@@ -63,9 +60,9 @@ struct sparse_vector_assign_selector;
 
 }
 
-template<typename Scalar_, int Options_, typename StorageIndex_>
+template<typename _Scalar, int _Options, typename _StorageIndex>
 class SparseVector
-  : public SparseCompressedBase<SparseVector<Scalar_, Options_, StorageIndex_> >
+  : public SparseCompressedBase<SparseVector<_Scalar, _Options, _StorageIndex> >
 {
     typedef SparseCompressedBase<SparseVector> Base;
     using Base::convert_index;
@@ -78,7 +75,7 @@ class SparseVector
     enum { IsColVector = internal::traits<SparseVector>::IsColVector };
     
     enum {
-      Options = Options_
+      Options = _Options
     };
     
     EIGEN_STRONG_INLINE Index rows() const { return IsColVector ? m_size : 1; }
@@ -210,33 +207,9 @@ class SparseVector
     inline void finalize() {}
 
     /** \copydoc SparseMatrix::prune(const Scalar&,const RealScalar&) */
-    Index prune(const Scalar& reference, const RealScalar& epsilon = NumTraits<RealScalar>::dummy_precision()) {
-      return prune([&](const Scalar& val){ return !internal::isMuchSmallerThan(val, reference, epsilon); });
-    }
-
-    /**
-     * \brief Prunes the entries of the vector based on a `predicate`
-     * \tparam F Type of the predicate.
-     * \param keep_predicate The predicate that is used to test whether a value should be kept. A callable that
-     * gets passed om a `Scalar` value and returns a boolean. If the predicate returns true, the value is kept.
-     * \return The new number of structural non-zeros.
-     */
-    template<class F>
-    Index prune(F&& keep_predicate)
+    void prune(const Scalar& reference, const RealScalar& epsilon = NumTraits<RealScalar>::dummy_precision())
     {
-      Index k = 0;
-      Index n = m_data.size();
-      for (Index i = 0; i < n; ++i)
-      {
-        if (keep_predicate(m_data.value(i)))
-        {
-          m_data.value(k) = std::move(m_data.value(i));
-          m_data.index(k) = m_data.index(i);
-          ++k;
-        }
-      }
-      m_data.resize(k);
-      return k;
+      m_data.prune(reference,epsilon);
     }
 
     /** Resizes the sparse vector to \a rows x \a cols
@@ -283,11 +256,11 @@ class SparseVector
 
     void resizeNonZeros(Index size) { m_data.resize(size); }
 
-    inline SparseVector() : m_size(0) { resize(0); }
+    inline SparseVector() : m_size(0) { check_template_parameters(); resize(0); }
 
-    explicit inline SparseVector(Index size) : m_size(0) { resize(size); }
+    explicit inline SparseVector(Index size) : m_size(0) { check_template_parameters(); resize(size); }
 
-    inline SparseVector(Index rows, Index cols) : m_size(0) { resize(rows,cols); }
+    inline SparseVector(Index rows, Index cols) : m_size(0) { check_template_parameters(); resize(rows,cols); }
 
     template<typename OtherDerived>
     inline SparseVector(const SparseMatrixBase<OtherDerived>& other)
@@ -296,12 +269,14 @@ class SparseVector
       #ifdef EIGEN_SPARSE_CREATE_TEMPORARY_PLUGIN
         EIGEN_SPARSE_CREATE_TEMPORARY_PLUGIN
       #endif
+      check_template_parameters();
       *this = other.derived();
     }
 
     inline SparseVector(const SparseVector& other)
       : Base(other), m_size(0)
     {
+      check_template_parameters();
       *this = other.derived();
     }
 
@@ -354,7 +329,6 @@ class SparseVector
     }
     #endif
 
-#ifndef EIGEN_NO_IO
     friend std::ostream & operator << (std::ostream & s, const SparseVector& m)
     {
       for (Index i=0; i<m.nonZeros(); ++i)
@@ -362,7 +336,6 @@ class SparseVector
       s << std::endl;
       return s;
     }
-#endif
 
     /** Destructor */
     inline ~SparseVector() {}
@@ -420,26 +393,30 @@ class SparseVector
 #   endif
 
 protected:
-    EIGEN_STATIC_ASSERT(NumTraits<StorageIndex>::IsSigned,THE_INDEX_TYPE_MUST_BE_A_SIGNED_TYPE)
-    EIGEN_STATIC_ASSERT((Options_&(ColMajor|RowMajor))==Options,INVALID_MATRIX_TEMPLATE_PARAMETERS)
-
+  
+    static void check_template_parameters()
+    {
+      EIGEN_STATIC_ASSERT(NumTraits<StorageIndex>::IsSigned,THE_INDEX_TYPE_MUST_BE_A_SIGNED_TYPE);
+      EIGEN_STATIC_ASSERT((_Options&(ColMajor|RowMajor))==Options,INVALID_MATRIX_TEMPLATE_PARAMETERS);
+    }
+    
     Storage m_data;
     Index m_size;
 };
 
 namespace internal {
 
-template<typename Scalar_, int Options_, typename Index_>
-struct evaluator<SparseVector<Scalar_,Options_,Index_> >
-  : evaluator_base<SparseVector<Scalar_,Options_,Index_> >
+template<typename _Scalar, int _Options, typename _Index>
+struct evaluator<SparseVector<_Scalar,_Options,_Index> >
+  : evaluator_base<SparseVector<_Scalar,_Options,_Index> >
 {
-  typedef SparseVector<Scalar_,Options_,Index_> SparseVectorType;
+  typedef SparseVector<_Scalar,_Options,_Index> SparseVectorType;
   typedef evaluator_base<SparseVectorType> Base;
   typedef typename SparseVectorType::InnerIterator InnerIterator;
   typedef typename SparseVectorType::ReverseInnerIterator ReverseInnerIterator;
   
   enum {
-    CoeffReadCost = NumTraits<Scalar_>::ReadCost,
+    CoeffReadCost = NumTraits<_Scalar>::ReadCost,
     Flags = SparseVectorType::Flags
   };
 
@@ -495,78 +472,6 @@ struct sparse_vector_assign_selector<Dest,Src,SVA_RuntimeSwitch> {
 };
 
 }
-
-// Specialization for SparseVector.
-// Serializes [size, numNonZeros, innerIndices, values].
-template <typename Scalar, int Options, typename StorageIndex>
-class Serializer<SparseVector<Scalar, Options, StorageIndex>, void> {
- public:
-  typedef SparseVector<Scalar, Options, StorageIndex> SparseMat;
-
-  struct Header {
-    typename SparseMat::Index size;
-    Index num_non_zeros;
-  };
-
-  EIGEN_DEVICE_FUNC size_t size(const SparseMat& value) const {
-    return sizeof(Header) +
-           (sizeof(Scalar) + sizeof(StorageIndex)) * value.nonZeros();
-  }
-
-  EIGEN_DEVICE_FUNC uint8_t* serialize(uint8_t* dest, uint8_t* end,
-                                       const SparseMat& value) {
-    if (EIGEN_PREDICT_FALSE(dest == nullptr)) return nullptr;
-    if (EIGEN_PREDICT_FALSE(dest + size(value) > end)) return nullptr;
-
-    const size_t header_bytes = sizeof(Header);
-    Header header = {value.innerSize(), value.nonZeros()};
-    EIGEN_USING_STD(memcpy)
-    memcpy(dest, &header, header_bytes);
-    dest += header_bytes;
-
-    // Inner indices.
-    std::size_t data_bytes = sizeof(StorageIndex) * header.num_non_zeros;
-    memcpy(dest, value.innerIndexPtr(), data_bytes);
-    dest += data_bytes;
-
-    // Values.
-    data_bytes = sizeof(Scalar) * header.num_non_zeros;
-    memcpy(dest, value.valuePtr(), data_bytes);
-    dest += data_bytes;
-
-    return dest;
-  }
-
-  EIGEN_DEVICE_FUNC const uint8_t* deserialize(const uint8_t* src,
-                                               const uint8_t* end,
-                                               SparseMat& value) const {
-    if (EIGEN_PREDICT_FALSE(src == nullptr)) return nullptr;
-    if (EIGEN_PREDICT_FALSE(src + sizeof(Header) > end)) return nullptr;
-
-    const size_t header_bytes = sizeof(Header);
-    Header header;
-    EIGEN_USING_STD(memcpy)
-    memcpy(&header, src, header_bytes);
-    src += header_bytes;
-
-    value.setZero();
-    value.resize(header.size);
-    value.resizeNonZeros(header.num_non_zeros);
-
-    // Inner indices.
-    std::size_t data_bytes = sizeof(StorageIndex) * header.num_non_zeros;
-    if (EIGEN_PREDICT_FALSE(src + data_bytes > end)) return nullptr;
-    memcpy(value.innerIndexPtr(), src, data_bytes);
-    src += data_bytes;
-
-    // Values.
-    data_bytes = sizeof(Scalar) * header.num_non_zeros;
-    if (EIGEN_PREDICT_FALSE(src + data_bytes > end)) return nullptr;
-    memcpy(value.valuePtr(), src, data_bytes);
-    src += data_bytes;
-    return src;
-  }
-};
 
 } // end namespace Eigen
 

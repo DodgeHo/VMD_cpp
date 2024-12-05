@@ -10,9 +10,6 @@
 #ifndef EIGEN_MATRIX_POWER
 #define EIGEN_MATRIX_POWER
 
-// IWYU pragma: private
-#include "./InternalHeaderCheck.h"
-
 namespace Eigen {
 
 template<typename MatrixType> class MatrixPower;
@@ -284,7 +281,7 @@ inline int MatrixPowerAtomic<MatrixType>::getPadeDegree(long double normIminusT)
 #endif
   int degree = 3;
   for (; degree <= maxPadeDegree; ++degree)
-    if (normIminusT <= static_cast<long double>(maxNormForPade[degree - 3]))
+    if (normIminusT <= maxNormForPade[degree - 3])
       break;
   return degree;
 }
