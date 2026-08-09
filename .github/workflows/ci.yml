@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: MSVC
+            os: windows-latest
+          - name: GCC
+            os: ubuntu-latest
+            cc: gcc
+            cxx: g++
+          - name: Clang
+            os: ubuntu-latest
+            cc: clang
+            cxx: clang++
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libeigen3-dev ninja-build
+
+      - name: Configure (MSVC)
+        if: runner.os == 'Windows'
+        run: >-
+          cmake -S . -B build-ci
+          -DVMD_USE_VENDORED_EIGEN=ON
+          -DVMD_BUILD_DOCS=OFF
+          -DVMD_ENABLE_WARNINGS=ON
+
+      - name: Configure (GCC or Clang)
+        if: runner.os == 'Linux'
+        env:
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+        run: >-
+          cmake -S . -B build-ci -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DVMD_BUILD_DOCS=OFF
+          -DVMD_ENABLE_WARNINGS=ON
+
+      - name: Build
+        run: cmake --build build-ci --config Release --parallel 2
+
+      - name: Test
+        run: ctest --test-dir build-ci -C Release --output-on-failure
+
+  install-package:
+    name: Installed package consumer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libeigen3-dev ninja-build
+      - name: Build and install VMD_cpp
+        run: |
+          cmake -S . -B build-install -G Ninja -DCMAKE_BUILD_TYPE=Release -DVMD_BUILD_DOCS=OFF
+          cmake --build build-install --parallel 2
+          cmake --install build-install --prefix "$PWD/install"
+      - name: Build downstream consumer
+        run: |
+          cmake -S tests/package_consumer -B build-consumer -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$PWD/install"
+          cmake --build build-consumer --parallel 2
+          ./build-consumer/vmd_package_consumer
+
+  sanitizers:
+    name: Clang ASan and UBSan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang libeigen3-dev ninja-build
+      - name: Configure
+        env:
+          CC: clang
+          CXX: clang++
+        run: >-
+          cmake -S . -B build-sanitizers -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DVMD_BUILD_DOCS=OFF
+          -DVMD_BUILD_BENCHMARKS=OFF
+          -DVMD_ENABLE_SANITIZERS=ON
+          -DVMD_ENABLE_WARNINGS=ON
+      - name: Build
+        run: cmake --build build-sanitizers --parallel 2
+      - name: Test
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: ctest --test-dir build-sanitizers --output-on-failure

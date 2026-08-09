@@ -1,0 +1,230 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/VMD_cpp/summary.schema.json",
+  "title": "VMD_cpp CLI summary",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "input",
+    "options",
+    "diagnostics",
+    "timings_ms",
+    "outputs"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "input": {
+      "type": "object",
+      "required": [
+        "source",
+        "column",
+        "samples",
+        "sample_rate_hz",
+        "delimiter",
+        "has_header"
+      ],
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "column": {
+          "type": "string"
+        },
+        "samples": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sample_rate_hz": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "delimiter": {
+          "enum": [
+            "comma",
+            "tab"
+          ]
+        },
+        "has_header": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "options": {
+      "type": "object",
+      "required": [
+        "mode_count",
+        "alpha",
+        "tau",
+        "dc_mode",
+        "initialization",
+        "tolerance",
+        "max_iterations",
+        "random_seed",
+        "keep_omega_history",
+        "adaptive_tau"
+      ],
+      "properties": {
+        "mode_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "alpha": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          }
+        },
+        "tau": {
+          "type": "number",
+          "minimum": 0
+        },
+        "dc_mode": {
+          "type": "boolean"
+        },
+        "initialization": {
+          "enum": [
+            "zero",
+            "uniform",
+            "random"
+          ]
+        },
+        "tolerance": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "max_iterations": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "random_seed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "keep_omega_history": {
+          "type": "boolean"
+        },
+        "adaptive_tau": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "diagnostics": {
+      "type": "object",
+      "required": [
+        "converged",
+        "iterations",
+        "final_mode_delta",
+        "reconstruction_error",
+        "primal_residual",
+        "dual_residual",
+        "final_tau"
+      ],
+      "properties": {
+        "converged": {
+          "type": "boolean"
+        },
+        "iterations": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "final_mode_delta": {
+          "type": "number",
+          "minimum": 0
+        },
+        "reconstruction_error": {
+          "type": "number",
+          "minimum": 0
+        },
+        "primal_residual": {
+          "type": "number",
+          "minimum": 0
+        },
+        "dual_residual": {
+          "type": "number",
+          "minimum": 0
+        },
+        "final_tau": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "timings_ms": {
+      "type": "object",
+      "required": [
+        "input",
+        "mirror_fft",
+        "iteration",
+        "spectrum_reconstruction",
+        "serialization",
+        "report"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "input": {
+          "type": "number",
+          "minimum": 0
+        },
+        "mirror_fft": {
+          "type": "number",
+          "minimum": 0
+        },
+        "iteration": {
+          "type": "number",
+          "minimum": 0
+        },
+        "spectrum_reconstruction": {
+          "type": "number",
+          "minimum": 0
+        },
+        "serialization": {
+          "type": "number",
+          "minimum": 0
+        },
+        "report": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "outputs": {
+      "type": "object",
+      "required": [
+        "modes",
+        "spectra",
+        "omega",
+        "summary",
+        "report"
+      ],
+      "properties": {
+        "modes": {
+          "type": "string"
+        },
+        "spectra": {
+          "type": "string"
+        },
+        "omega": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "report": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

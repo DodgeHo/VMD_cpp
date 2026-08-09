@@ -1,30 +1,147 @@
 # VMD_cpp
 
-# C++ implementation of Variational Mode Decomposition using Eigen3
-Written by: Dodge(Lang HE) asdsay@gmail.com
-Updated date: 2024-12-05
+VMD_cpp is a C++17 implementation of Variational Mode Decomposition (VMD). The
+project provides a reusable Eigen-based library, a compatibility wrapper for the
+original API, a command-line tool, structured CSV/JSON output, and a fully
+self-contained HTML report.
 
-VMD, aka Variational Mode Decomposition, is a signal processing tool that decompse the input signal into different band-limited IMFs. 
-Project **VMD_cpp**  is an imitation of [that in MATLAB](https://ww2.mathworks.cn/help/wavelet/ref/vmd.html). In this project, I used eigen3 to refactor VMD in C++, so that we can use it without MATLAB. 
-Detail input and output please check out function **VMD** in file [VMD_Utils.cpp](https://github.com/DodgeHo/VMD_cpp/blob/master/VMD_Utils.cpp).
+## Highlights
 
-This sample code was written in MSBuild. You can both run in Visual Studio 2022 or MSVC or CMAKE/GCC, you can use either the sln project file, or the CMakeList.txt, they both work.
+- Corrected `N x K` mode spectra: each column is `fftshift(fft(IMF))`.
+- Stable handling of zero, constant, short, odd-length, and even-length signals.
+- Per-mode `alpha`, reproducible random initialization, warm starts, and optional adaptive `tau`.
+- Double-buffered iterations with `O(K * N)` working memory instead of storing every iteration.
+- CSV/TSV CLI input and CSV, JSON, and offline HTML/SVG output.
+- Installable CMake package exported as `VMD_cpp::vmd`.
+- Eigen FFT by default, with optional FFTW and MKL backends.
 
-If you are looking for document to describe Variational mode decomposition, please turn to the original paper [Variational Mode Decomposition](https://ieeexplore.ieee.org/document/6655981). You can also find the MATLAB codes here.
+## Requirements
 
-This VMD runs too slow. I tried to use Multiple Threads in Eigen, and I did everything I can. Hopefully this is good enough for someone using it.
+- CMake 3.20 or newer
+- A C++17 compiler
+- Eigen 3.3 or newer
 
+CMake first searches for `Eigen3::Eigen`. If it is unavailable, Eigen 3.4.0 is
+fetched automatically. The bundled historical `Eigen/` tree is ignored unless
+`VMD_USE_VENDORED_EIGEN=ON` is explicitly selected.
 
-# VMD（变分模态分解）的C++实现，使用了Eigen3
+## Build
 
-作者：Dodge asdsay@gmail.com 
-更新日期：2024-12-05
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release --parallel
+ctest --test-dir build -C Release --output-on-failure
+```
 
-VMD（变分模态分解）是一种信号处理算法，可以将输入信号分解为不同带限的内禀模态函数（IMFs）。
-本项目**VMD_cpp** 是参考于[其在MATLAB中的实现](https://ww2.mathworks.cn/help/wavelet/ref/vmd.html)。在项目中，借助eigen3来实现C++中的VMD，从而无须MATLAB的计算。详细的输入输出，可以查看[VMD_Utils.cpp](https://github.com/DodgeHo/VMD_cpp/blob/master/VMD_Utils.cpp)文件中的 **VMD**函数。
+Useful options:
 
-本项目用MSBuild编写，也可在Visual Studio 2022、MSVC或CMAKE/GCC中运行，sln项目文件或CMakeList.txt都能用。
+| Option | Default | Purpose |
+|---|---:|---|
+| `VMD_BUILD_CLI` | `ON` | Build `vmd_cli`. |
+| `VMD_BUILD_EXAMPLES` | `ON` | Build `vmd_example`. |
+| `VMD_BUILD_TESTS` | `BUILD_TESTING` | Build unit and CLI tests. |
+| `VMD_BUILD_BENCHMARKS` | `ON` | Build `vmd_benchmark`. |
+| `VMD_BUILD_DOCS` | `ON` | Add a `docs` target when Doxygen exists. |
+| `VMD_FFT_BACKEND` | `Eigen` | Select `Eigen`, `FFTW`, or `MKL`. |
+| `VMD_ENABLE_SANITIZERS` | `OFF` | Enable ASan and UBSan on supported compilers. |
 
-如果需要描述变分模态分解的文档，可参阅原始论文[Variational Mode Decomposition](https://ieeexplore.ieee.org/document/6655981)。
+## Library API
 
-这个项目稍慢。我尝试加入了Eigen自带的多线程计算，并尽可能在原代码上修改，尽可能让Eigen加快，希望效果足够好吧。
+```cpp
+#include <vmd/vmd.hpp>
+
+Eigen::VectorXd signal = /* finite samples */;
+
+vmd::Options options;
+options.mode_count = 6;
+options.alpha = {2000.0};        // broadcast to all modes
+options.sample_rate_hz = 1000.0;
+options.initialization = vmd::Initialization::Uniform;
+
+vmd::Result result = vmd::decompose(signal, options);
+
+// result.modes:             K x N
+// result.spectra:           N x K, fftshift(fft(mode))
+// result.omega_normalized:  iterations x K, cycles/sample
+// result.omega_hz:          iterations x K, hertz
+```
+
+Invalid arguments throw `std::invalid_argument`. Every returned matrix owns its
+storage. Calls do not share decomposition state, so independent calls may run in
+parallel.
+
+See [API documentation](docs/api.md) and [algorithm notes](docs/algorithm.md).
+
+## CLI Quick Start
+
+```sh
+vmd_cli --input signal.csv --column value --sample-rate 1000 \
+        --modes 6 --alpha 2000 --output-dir results --report
+```
+
+Read TSV automatically, select a zero-based column index, or read from standard
+input with `--input -`. The built-in example is explicit:
+
+```sh
+vmd_cli --demo --sample-rate 1200 --modes 8 --alpha 50 \
+        --output-dir results --report
+```
+
+With no input, the CLI prints help and exits with code 2. A nonconverged run exits
+with code 4 but still writes its result files.
+
+## Output Files
+
+- `modes.csv`: index, time, input, every IMF, reconstruction, and residual.
+- `spectra.csv`: shifted frequency and real, imaginary, and magnitude values.
+- `omega.csv`: center-frequency trajectory in hertz.
+- `summary.json`: input metadata, options, diagnostics, timings, and file names.
+- `report.html`: optional offline report with inline CSS, JavaScript, data, and SVG.
+
+The report includes input/reconstruction, residual, IMF, spectrum, and frequency
+convergence views. Plot data is min/max-envelope downsampled; CSV output retains
+all samples.
+
+See [CLI and file formats](docs/cli-and-formats.md).
+
+## Legacy Compatibility
+
+Existing code may continue to include `VMD.h` and call the global `VMD(...)`
+function. The wrapper maps old arguments to `vmd::decompose` while preserving:
+
+- `u` as `K x N`.
+- `u_hat` as `N x K` (now corrected to the documented spectrum).
+- `omega` as normalized cycles per sample.
+- Initialization values `0 = zero`, `1 = uniform`, and `2 = random`.
+
+New integrations should use the namespaced API.
+
+## Install and Consume
+
+```sh
+cmake --install build --prefix install
+```
+
+Downstream CMake:
+
+```cmake
+find_package(VMD_cpp 2 CONFIG REQUIRED)
+add_executable(my_app main.cpp)
+target_link_libraries(my_app PRIVATE VMD_cpp::vmd)
+```
+
+Ensure Eigen is discoverable by the downstream project. Packages built with FFTW
+or MKL also require the selected backend at link and runtime.
+
+## Validation and Performance
+
+`vmd_tests` covers reference, single-frequency, multifrequency, noisy, chirp,
+DC, zero, constant, short, odd/even length, random-seed, warm-start, and legacy
+paths. `vmd_benchmark` reports stage timings and an estimated core workspace.
+
+See [validation and performance](docs/validation-and-performance.md).
+
+## License
+
+This project is distributed under the Mozilla Public License 2.0. See
+[LICENSE.txt](LICENSE.txt).
