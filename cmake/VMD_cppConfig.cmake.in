@@ -1,0 +1,20 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+find_dependency(Eigen3 3.3 CONFIG)
+
+set(VMD_cpp_FFT_BACKEND "@VMD_FFT_BACKEND_UPPER@")
+if(VMD_cpp_FFT_BACKEND STREQUAL "FFTW" AND NOT TARGET FFTW3::fftw3)
+    find_path(FFTW3_INCLUDE_DIR fftw3.h REQUIRED)
+    find_library(FFTW3_LIBRARY NAMES fftw3 libfftw3-3 REQUIRED)
+    add_library(FFTW3::fftw3 UNKNOWN IMPORTED)
+    set_target_properties(FFTW3::fftw3 PROPERTIES
+        IMPORTED_LOCATION "${FFTW3_LIBRARY}"
+        INTERFACE_INCLUDE_DIRECTORIES "${FFTW3_INCLUDE_DIR}"
+    )
+elseif(VMD_cpp_FFT_BACKEND STREQUAL "MKL")
+    find_dependency(MKL CONFIG)
+endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/VMD_cppTargets.cmake")
+check_required_components(VMD_cpp)

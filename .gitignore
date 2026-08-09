@@ -1974,3 +1974,7 @@ eigen-3.4.0/unsupported/test/special_functions.cpp
 eigen-3.4.0/unsupported/test/special_packetmath.cpp
 eigen-3.4.0/unsupported/test/splines.cpp
 eigen-3.4.0/ci/build.gitlab-ci.yml
+# Local CMake and Codex build trees
+/.codex-build/
+/build-*/
+/vmd-output/
