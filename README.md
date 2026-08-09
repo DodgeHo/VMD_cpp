@@ -1,5 +1,9 @@
 # VMD_cpp
 
+<p align="center">
+  <img src="docs/assets/vmd-overview.svg" alt="VMD_cpp separates a composite signal into narrow-band intrinsic mode functions" width="100%">
+</p>
+
 VMD_cpp is a C++17 implementation of Variational Mode Decomposition (VMD). The
 project provides a reusable Eigen-based library, a compatibility wrapper for the
 original API, a command-line tool, structured CSV/JSON output, and a fully
